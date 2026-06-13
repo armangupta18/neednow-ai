@@ -1,0 +1,2 @@
+class SupervisorException(Exception):
+    pass

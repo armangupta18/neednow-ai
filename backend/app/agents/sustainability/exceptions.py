@@ -1,0 +1,4 @@
+class SustainabilityAgentException(
+    Exception
+):
+    pass
