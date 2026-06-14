@@ -29,6 +29,9 @@ class Settings(BaseSettings):
         default_factory=lambda: [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://10.26.29.116:3000",
+            "http://10.55.97.116:3000",
+            "*",
         ]
     )
 
@@ -49,6 +52,8 @@ class Settings(BaseSettings):
     VECTOR_TOP_K: int = 20
 
     SESSION_TTL_MINUTES: int = 60
+
+    USE_MOCK_LLM: bool = True
 
 
 @lru_cache

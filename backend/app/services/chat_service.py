@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 from uuid import UUID, uuid4
 
 from app.agents.shared.message import AgentMessage, MessageRole
 from app.agents.supervisor.agent import SupervisorAgent
 from app.agents.supervisor.exception import SupervisorException
 from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
+from app.services.cart_service import CartService
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -35,6 +39,16 @@ class ChatService:
             raise exc
         except SupervisorException as exc:
             raise RuntimeError(str(exc)) from exc
+
+        # Persist recommended products to demo cart
+        cart_products = result.cart.get("products", [])
+        if cart_products:
+            CartService.set_demo_cart(str(request.user_id), cart_products)
+            logger.info(
+                "Chat-to-cart: %d products added to demo cart for user %s",
+                len(cart_products),
+                request.user_id,
+            )
 
         assistant_message = AgentMessage(
             user_id=request.user_id,

@@ -4,7 +4,6 @@ import logging
 from io import BytesIO
 from uuid import UUID
 
-import boto3
 from fastapi import UploadFile
 
 from app.core.logger import logger
@@ -52,7 +51,7 @@ class TranscriptionError(VoiceServiceError):
 class VoiceService:
     """Service layer for audio transcription and voice chat integration.
 
-    Handles audio file uploads, transcription via AWS Transcribe or Whisper,
+    Handles audio file uploads, transcription via AWS Transcribe or mock,
     and integration with the chat pipeline for voice-based interactions.
     """
 
@@ -62,14 +61,26 @@ class VoiceService:
     ) -> None:
         self._chat_service = chat_service
         self._logger = logger
-        self._transcribe_client = boto3.client(
-            "transcribe",
-            region_name=settings.AWS_REGION,
-        )
-        self._s3_client = boto3.client(
-            "s3",
-            region_name=settings.AWS_REGION,
-        )
+        self._mock_mode = settings.USE_MOCK_LLM
+        self._transcribe_client = None
+        self._s3_client = None
+
+        if not self._mock_mode:
+            try:
+                import boto3
+                self._transcribe_client = boto3.client(
+                    "transcribe",
+                    region_name=settings.AWS_REGION,
+                )
+                self._s3_client = boto3.client(
+                    "s3",
+                    region_name=settings.AWS_REGION,
+                )
+            except Exception as exc:
+                self._logger.warning("AWS clients unavailable: %s. Using mock transcription.", exc)
+                self._mock_mode = True
+        else:
+            self._logger.info("VoiceService initialized in MOCK mode")
 
     async def transcribe_audio(
         self,
@@ -355,25 +366,15 @@ class VoiceService:
         language: str,
         user_id: UUID,
     ) -> str:
-        """Transcribe audio content using AWS Transcribe.
+        """Transcribe audio content.
 
-        Args:
-            file_content: Audio file bytes
-            filename: Original filename
-            language: Language code
-            user_id: User identifier
-
-        Returns:
-            Transcribed text
-
-        Raises:
-            TranscriptionError: If transcription fails
-
-        Note:
-            Future: Integrate Whisper API as fallback or primary option.
-            Whisper provides better multilingual support and privacy.
-            Implementation can switch based on settings.TRANSCRIPTION_ENGINE.
+        In mock mode: returns a simulated transcription.
+        In AWS mode: uses AWS Transcribe.
         """
+        if self._mock_mode:
+            self._logger.info("Mock transcription for user %s", user_id)
+            return "I need help finding products for my situation"
+
         try:
             safe_filename = f"voice/{user_id}/{filename}"
 

@@ -1,7 +1,8 @@
 from .agent import ProductAgent
-from .schemas import ProductRecommendation
+from .schemas import ProductCandidate, ProductResponse
 
 __all__ = [
     "ProductAgent",
-    "ProductRecommendation",
+    "ProductCandidate",
+    "ProductResponse",
 ]

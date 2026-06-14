@@ -54,7 +54,9 @@ class ProductAgent:
         products, score_map = (
             await self.retrieval_service
             .retrieve(
-                embedding
+                embedding,
+                category=category,
+                situation=situation,
             )
         )
 
@@ -68,7 +70,7 @@ class ProductAgent:
 
         top_products = []
 
-        for product, score, similarity in ranked[:10]:
+        for product, score, similarity in ranked[:4]:
 
             top_products.append(
                 ProductCandidate(
@@ -103,16 +105,10 @@ class ProductAgent:
                 )
             )
 
-        confidence = round(
-            (
-                sum(
-                    p.similarity_score
-                    for p in top_products[:3]
-                )
-                / 3
-            ),
-            2,
-        )
+        confidence = 0.0
+        if top_products:
+            top_scores = [p.similarity_score for p in top_products[:3]]
+            confidence = round(sum(top_scores) / len(top_scores), 2)
 
         return ProductResponse(
             top_products=top_products,

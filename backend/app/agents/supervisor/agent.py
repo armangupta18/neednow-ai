@@ -64,10 +64,16 @@ class SupervisorAgent:
         situation: str,
     ) -> SupervisorResponse:
 
-        memory = (
-            await self.memory_manager
-            .retrieve_memory(user_id)
-        )
+        try:
+            memory = (
+                await self.memory_manager
+                .retrieve_memory(user_id)
+            )
+        except Exception:
+            # User not found or memory retrieval failed
+            # Continue with empty/default memory
+            from app.memory.schemas import UserMemory
+            memory = UserMemory()
 
         memory_context = (
             MemoryContextBuilder.build(

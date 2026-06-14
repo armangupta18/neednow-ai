@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.sustainability.agent import SustainabilityAgent
 from app.agents.sustainability.retrieval_service import SustainabilityRetrievalService
-from app.database.session import get_db
+from app.database.connection import get_db
 from app.services.sustainability_service import SustainabilityService
 
 

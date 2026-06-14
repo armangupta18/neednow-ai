@@ -91,5 +91,5 @@ class EmergencyService:
         try:
             memory = await self._memory_manager.retrieve_memory(user_id)
             return memory.model_dump()
-        except ValueError:
+        except Exception:
             return {}

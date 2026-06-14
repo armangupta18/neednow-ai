@@ -1,7 +1,8 @@
 from .agent import SustainabilityAgent
-from .schemas import SustainabilityAnalysis
+from .schemas import EcoAlternative, SustainabilityResponse
 
 __all__ = [
     "SustainabilityAgent",
-    "SustainabilityAnalysis",
+    "EcoAlternative",
+    "SustainabilityResponse",
 ]

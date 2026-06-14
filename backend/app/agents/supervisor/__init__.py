@@ -1,7 +1,7 @@
 from .agent import SupervisorAgent
-from .schemas import SupervisorDecision
+from .schemas import SupervisorResponse
 
 __all__ = [
     "SupervisorAgent",
-    "SupervisorDecision",
+    "SupervisorResponse",
 ]

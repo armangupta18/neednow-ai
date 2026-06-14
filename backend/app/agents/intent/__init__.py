@@ -1,7 +1,7 @@
 from .agent import IntentAgent
-from .schemas import IntentAnalysis
+from .schemas import IntentResponse
 
 __all__ = [
     "IntentAgent",
-    "IntentAnalysis",
+    "IntentResponse",
 ]

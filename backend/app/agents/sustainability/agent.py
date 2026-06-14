@@ -44,13 +44,22 @@ class SustainabilityAgent:
 
         for product in recommended_products:
 
-            alternatives = (
-                await self.retrieval_service
-                .find_alternatives(
-                    category=product.category,
-                    exclude_product_id=product.id,
+            # Handle both Product model (has .id) and ProductCandidate (has .product_id)
+            product_id = getattr(product, 'id', None) or getattr(product, 'product_id', None)
+            product_category = getattr(product, 'category', 'general')
+            product_title = getattr(product, 'title', 'Product')
+            product_price = getattr(product, 'price', 0.0)
+
+            try:
+                alternatives = (
+                    await self.retrieval_service
+                    .find_alternatives(
+                        category=product_category,
+                        exclude_product_id=product_id,
+                    )
                 )
-            )
+            except Exception:
+                alternatives = []
 
             eco_product = (
                 AlternativeService.find_best(
@@ -64,7 +73,7 @@ class SustainabilityAgent:
 
             carbon_saved = (
                 CarbonService.carbon_saved(
-                    product.category,
+                    product_category,
                     eco_product.category,
                 )
             )
@@ -87,10 +96,10 @@ class SustainabilityAgent:
             alternatives_output.append(
                 EcoAlternative(
                     original_product_id=
-                    product.id,
+                    product_id,
 
                     original_product_name=
-                    product.title,
+                    product_title,
 
                     alternative_product_id=
                     eco_product.id,
