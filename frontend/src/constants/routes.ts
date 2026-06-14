@@ -7,6 +7,9 @@ export const ROUTES = {
   HOME: "/",
   CHAT: "/chat",
   CART: "/cart",
+  CHECKOUT: "/checkout",
+  ORDER_SUCCESS: "/order-success",
+  ORDERS: "/orders",
   HISTORY: "/history",
 
   // Features
@@ -55,5 +58,10 @@ export const API_ROUTES = {
     ANALYZE: "/sustainability/analyze",
     RECOMMEND: "/sustainability/recommend",
     SCORE: (productId: string) => `/sustainability/score/${productId}`,
+  },
+  ORDERS: {
+    PLACE: "/orders",
+    LIST: (userId: string) => `/orders/${userId}`,
+    GET: (userId: string, orderId: string) => `/orders/${userId}/${orderId}`,
   },
 } as const;

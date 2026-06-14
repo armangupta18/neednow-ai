@@ -18,12 +18,17 @@ from app.database.connection import init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting NeedNow AI Backend...")
-    logger.info("Mock LLM Mode: %s", "ENABLED" if settings.USE_MOCK_LLM else "DISABLED")
+    llm_mode = "MOCK" if settings.USE_MOCK_LLM else "GEMINI LIVE"
+    has_key = bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.strip())
+    logger.info("LLM Provider: Google Gemini (%s)", settings.GEMINI_MODEL_ID)
+    logger.info("LLM Mode: %s | API Key: %s", llm_mode, "configured" if has_key else "missing")
     await init_db()
     logger.info("Database tables initialized.")
     print("\n" + "=" * 50)
     print("  NeedNow AI Backend Started")
-    print(f"  Mock LLM Mode: {'ENABLED' if settings.USE_MOCK_LLM else 'DISABLED'}")
+    print(f"  LLM: Google Gemini ({settings.GEMINI_MODEL_ID})")
+    print(f"  Mode: {llm_mode}")
+    print(f"  API Key: {'✓ configured' if has_key else '✗ missing (mock mode)'}")
     print("=" * 50 + "\n")
     yield
     logger.info("Shutting down NeedNow AI Backend...")
@@ -57,6 +62,7 @@ from app.api.v1.memory import router as memory_router
 from app.api.v1.emergency import router as emergency_router
 from app.api.v1.voice import router as voice_router
 from app.api.v1.sustainability import router as sustainability_router
+from app.api.v1.orders import router as orders_router
 
 app.include_router(
     intent_router,
@@ -68,6 +74,7 @@ app.include_router(memory_router, prefix="/api/v1")
 app.include_router(emergency_router, prefix="/api/v1")
 app.include_router(voice_router, prefix="/api/v1")
 app.include_router(sustainability_router, prefix="/api/v1")
+app.include_router(orders_router, prefix="/api/v1")
 @app.get("/", tags=["Health"])
 async def root():
     return {

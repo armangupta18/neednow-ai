@@ -14,7 +14,7 @@ interface FooterProps {
 export default function Footer({
   brand = "NeedNow AI",
   links = [],
-  attribution = "Powered by Amazon Bedrock • HackOn 6.0",
+  attribution = "Powered by Google Gemini • HackOn 6.0",
 }: FooterProps) {
   return (
     <footer className="border-t bg-slate-50">

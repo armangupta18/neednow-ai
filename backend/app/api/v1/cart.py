@@ -11,7 +11,12 @@ from app.schemas.cart import (
     CartRemoveRequest,
     CartResponse,
 )
-from app.services.cart_service import CartService
+from app.services.cart_service import (
+    CartService,
+    CartNotFoundError,
+    CartServiceError,
+    ProductNotFoundError,
+)
 
 router = APIRouter(
     prefix="/cart",
@@ -42,34 +47,26 @@ async def add_cart_item(
                 "user_id": str(request.user_id),
                 "product_id": str(request.product_id),
                 "quantity": request.quantity,
-                "cart_id": str(response.cart.cart_id),
             },
         )
 
         return response
 
-    except ValueError as exc:
-        logger.warning(
-            "Cart add validation error",
-            extra={
-                "user_id": str(request.user_id),
-                "product_id": str(request.product_id),
-                "error": str(exc),
-            },
-        )
+    except ProductNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
 
+    except CartServiceError as exc:
+        logger.warning("Cart add error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
     except Exception:
-        logger.exception(
-            "Failed to add cart item",
-            extra={
-                "user_id": str(request.user_id),
-                "product_id": str(request.product_id),
-            },
-        )
+        logger.exception("Failed to add cart item")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add item to cart",
@@ -98,35 +95,26 @@ async def remove_cart_item(
             extra={
                 "user_id": str(request.user_id),
                 "product_id": str(request.product_id),
-                "quantity": request.quantity,
-                "cart_id": str(response.cart.cart_id),
             },
         )
 
         return response
 
-    except ValueError as exc:
-        logger.warning(
-            "Cart remove validation error",
-            extra={
-                "user_id": str(request.user_id),
-                "product_id": str(request.product_id),
-                "error": str(exc),
-            },
-        )
+    except (CartNotFoundError, ProductNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
 
+    except CartServiceError as exc:
+        logger.warning("Cart remove error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
     except Exception:
-        logger.exception(
-            "Failed to remove cart item",
-            extra={
-                "user_id": str(request.user_id),
-                "product_id": str(request.product_id),
-            },
-        )
+        logger.exception("Failed to remove cart item")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to remove item from cart",
@@ -147,31 +135,14 @@ async def get_user_cart(
         response = await cart_service.get_cart(user_id)
 
         logger.info(
-            "Cart retrieved",
-            extra={
-                "user_id": str(user_id),
-                "cart_id": str(response.cart_id),
-                "item_count": len(response.items),
-            },
+            "Cart retrieved | user=%s | items=%d",
+            user_id, len(response.items),
         )
 
         return response
 
-    except ValueError as exc:
-        logger.warning(
-            "Cart retrieval validation error",
-            extra={"user_id": str(user_id), "error": str(exc)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-
     except Exception:
-        logger.exception(
-            "Failed to retrieve cart",
-            extra={"user_id": str(user_id)},
-        )
+        logger.exception("Failed to retrieve cart for user=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve cart",
@@ -191,28 +162,12 @@ async def clear_user_cart(
     try:
         response = await cart_service.clear_cart(user_id)
 
-        logger.info(
-            "Cart cleared",
-            extra={"user_id": str(user_id)},
-        )
+        logger.info("Cart cleared | user=%s", user_id)
 
         return response
 
-    except ValueError as exc:
-        logger.warning(
-            "Cart clear validation error",
-            extra={"user_id": str(user_id), "error": str(exc)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-
     except Exception:
-        logger.exception(
-            "Failed to clear cart",
-            extra={"user_id": str(user_id)},
-        )
+        logger.exception("Failed to clear cart for user=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to clear cart",

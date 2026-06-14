@@ -35,13 +35,9 @@ class Settings(BaseSettings):
         ]
     )
 
-    AWS_REGION: str = "ap-south-1"
-
-    BEDROCK_MODEL_ID: str = (
-        "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    )
-
-    BEDROCK_MAX_TOKENS: int = 4096
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL_ID: str = "gemini-2.5-flash"
+    GEMINI_MAX_TOKENS: int = 4096
 
     FAISS_INDEX_PATH: str = "faiss_indexes"
 

@@ -1,7 +1,7 @@
 """Embedding generation module.
 
 Provides a unified interface for generating vector embeddings
-from text using configurable model backends (e.g., Amazon Bedrock, OpenAI).
+from text using configurable model backends (e.g., Google Gemini).
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class Embedder:
 
     def __init__(
         self,
-        model_id: str = "amazon.titan-embed-text-v2:0",
+        model_id: str = "text-embedding-004",
         dimensions: int = 1024,
         embedding_fn: Any | None = None,
     ) -> None:

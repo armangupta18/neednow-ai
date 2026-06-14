@@ -9,7 +9,7 @@ Validates:
     4. Error propagation — failures at each stage propagate correctly.
 
 These tests exercise the real SupervisorAgent orchestration logic with
-mocked Bedrock, DB, and FAISS services. They verify that agents
+mocked LLM, DB, and FAISS services. They verify that agents
 compose correctly and data flows between pipeline stages.
 """
 
@@ -81,13 +81,15 @@ def mock_memory_manager(sample_memory: UserMemory) -> AsyncMock:
 
 
 @pytest.fixture
-def mock_bedrock_intent() -> AsyncMock:
-    """Mock BedrockService returning intent JSON."""
+def mock_llm_intent() -> AsyncMock:
+    """Mock GeminiService returning intent JSON."""
     service = AsyncMock()
     service.invoke = AsyncMock(
         return_value=json.dumps({
+            "intent": "baby_care",
             "category": "baby",
             "urgency": "high",
+            "keywords": ["baby formula", "diapers", "baby wipes"],
             "budget": 50.0,
             "people_count": 1,
             "confidence": 0.93,
@@ -97,8 +99,8 @@ def mock_bedrock_intent() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_bedrock_urgency() -> AsyncMock:
-    """Mock BedrockService returning urgency JSON."""
+def mock_llm_urgency() -> AsyncMock:
+    """Mock GeminiService returning urgency JSON."""
     service = AsyncMock()
     service.invoke = AsyncMock(
         return_value=json.dumps({
@@ -149,22 +151,37 @@ def mock_sustainability_retrieval() -> AsyncMock:
 
 
 @pytest.fixture
-def intent_agent(mock_bedrock_intent: AsyncMock) -> IntentAgent:
-    return IntentAgent(bedrock_service=mock_bedrock_intent)
+def intent_agent(mock_llm_intent: AsyncMock) -> IntentAgent:
+    return IntentAgent(llm_service=mock_llm_intent)
 
 
 @pytest.fixture
-def urgency_agent(mock_bedrock_urgency: AsyncMock) -> Any:
-    """Create urgency agent with mocked Bedrock."""
+def urgency_agent(mock_llm_urgency: AsyncMock) -> Any:
+    """Create urgency agent with mocked LLM."""
     from app.agents.urgency.agent import UrgencyAgent
-    return UrgencyAgent(bedrock_service=mock_bedrock_urgency)
+    return UrgencyAgent(llm_service=mock_llm_urgency)
 
 
 @pytest.fixture
-def product_agent(mock_embedding_service: AsyncMock, mock_retrieval_service: AsyncMock) -> ProductAgent:
+def mock_llm_product() -> AsyncMock:
+    """Mock GeminiService for ProductAgent recommendation generation."""
+    service = AsyncMock()
+    service.invoke = AsyncMock(return_value=json.dumps({
+        "recommendations": [
+            {"product_name": "Organic Baby Formula", "reason": "Essential nutrition for infant", "priority": 1},
+            {"product_name": "Baby Wipes Sensitive", "reason": "Gentle cleaning for baby", "priority": 2},
+            {"product_name": "Premium Diapers Pack", "reason": "Daily essential for newborn", "priority": 3},
+        ]
+    }))
+    return service
+
+
+@pytest.fixture
+def product_agent(mock_embedding_service: AsyncMock, mock_retrieval_service: AsyncMock, mock_llm_product: AsyncMock) -> ProductAgent:
     return ProductAgent(
         embedding_service=mock_embedding_service,
         retrieval_service=mock_retrieval_service,
+        llm_service=mock_llm_product,
     )
 
 
@@ -287,24 +304,24 @@ class TestAgentOrchestration:
 
     @pytest.mark.asyncio
     async def test_intent_agent_receives_situation(
-        self, supervisor: SupervisorAgent, user_id: UUID, mock_bedrock_intent: AsyncMock
+        self, supervisor: SupervisorAgent, user_id: UUID, mock_llm_intent: AsyncMock
     ) -> None:
         """IntentAgent receives the user's situation text."""
         situation = "Need diapers immediately"
         await supervisor.execute(user_id=user_id, situation=situation)
-        mock_bedrock_intent.invoke.assert_called_once()
-        call_kwargs = mock_bedrock_intent.invoke.call_args[1]
+        mock_llm_intent.invoke.assert_called_once()
+        call_kwargs = mock_llm_intent.invoke.call_args[1]
         assert situation in call_kwargs["user_prompt"]
 
     @pytest.mark.asyncio
     async def test_urgency_agent_receives_situation(
-        self, supervisor: SupervisorAgent, user_id: UUID, mock_bedrock_urgency: AsyncMock
+        self, supervisor: SupervisorAgent, user_id: UUID, mock_llm_urgency: AsyncMock
     ) -> None:
         """UrgencyAgent receives the user's situation text."""
         situation = "Emergency baby formula"
         await supervisor.execute(user_id=user_id, situation=situation)
-        mock_bedrock_urgency.invoke.assert_called_once()
-        call_kwargs = mock_bedrock_urgency.invoke.call_args[1]
+        mock_llm_urgency.invoke.assert_called_once()
+        call_kwargs = mock_llm_urgency.invoke.call_args[1]
         assert situation in call_kwargs["user_prompt"]
 
     @pytest.mark.asyncio
@@ -332,14 +349,14 @@ class TestAgentOrchestration:
         self,
         supervisor: SupervisorAgent,
         user_id: UUID,
-        mock_bedrock_intent: AsyncMock,
-        mock_bedrock_urgency: AsyncMock,
+        mock_llm_intent: AsyncMock,
+        mock_llm_urgency: AsyncMock,
     ) -> None:
         """Both intent and urgency agents are invoked (parallel via gather)."""
         await supervisor.execute(user_id=user_id, situation="Test parallel")
         # Both should be called exactly once
-        assert mock_bedrock_intent.invoke.call_count == 1
-        assert mock_bedrock_urgency.invoke.call_count == 1
+        assert mock_llm_intent.invoke.call_count == 1
+        assert mock_llm_urgency.invoke.call_count == 1
 
     @pytest.mark.asyncio
     async def test_category_flows_from_intent_to_product(
@@ -446,19 +463,19 @@ class TestErrorPropagation:
 
     @pytest.mark.asyncio
     async def test_intent_agent_failure_propagates(
-        self, supervisor: SupervisorAgent, user_id: UUID, mock_bedrock_intent: AsyncMock
+        self, supervisor: SupervisorAgent, user_id: UUID, mock_llm_intent: AsyncMock
     ) -> None:
         """IntentAgent failure propagates from the pipeline."""
-        mock_bedrock_intent.invoke.return_value = "Not valid JSON at all"
+        mock_llm_intent.invoke.return_value = "Not valid JSON at all"
         with pytest.raises(IntentParsingException):
             await supervisor.execute(user_id=user_id, situation="Test")
 
     @pytest.mark.asyncio
     async def test_urgency_agent_failure_propagates(
-        self, supervisor: SupervisorAgent, user_id: UUID, mock_bedrock_urgency: AsyncMock
+        self, supervisor: SupervisorAgent, user_id: UUID, mock_llm_urgency: AsyncMock
     ) -> None:
         """UrgencyAgent failure propagates from the pipeline."""
-        mock_bedrock_urgency.invoke.return_value = "garbage"
+        mock_llm_urgency.invoke.return_value = "garbage"
         with pytest.raises(Exception):
             await supervisor.execute(user_id=user_id, situation="Test")
 
@@ -467,8 +484,8 @@ class TestErrorPropagation:
         self, supervisor: SupervisorAgent, user_id: UUID, mock_embedding_service: AsyncMock
     ) -> None:
         """EmbeddingService failure in ProductAgent propagates."""
-        mock_embedding_service.generate_embedding.side_effect = RuntimeError("Bedrock timeout")
-        with pytest.raises(RuntimeError, match="Bedrock timeout"):
+        mock_embedding_service.generate_embedding.side_effect = RuntimeError("LLM timeout")
+        with pytest.raises(RuntimeError, match="LLM timeout"):
             await supervisor.execute(user_id=user_id, situation="Test")
 
     @pytest.mark.asyncio

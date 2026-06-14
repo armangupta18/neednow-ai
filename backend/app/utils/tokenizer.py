@@ -1,12 +1,12 @@
 """Text tokenization utilities for NeedNow AI.
 
 Provides token counting, estimation, text chunking, and context window
-management for Bedrock Claude integration, memory engine, and prompt
+management for Gemini integration, memory engine, and prompt
 management. Uses a lightweight heuristic tokenizer — no external
 tokenizer dependency required.
 
 Architecture:
-    - Bedrock Claude Integration: Token budget enforcement for prompts.
+    - Gemini LLM Integration: Token budget enforcement for prompts.
     - Memory Engine: Chunking memory content for embedding pipelines.
     - Prompt Management: Ensuring prompts fit within model context windows.
 """
@@ -25,19 +25,19 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-# Claude model context windows (tokens)
+# LLM model context windows (tokens)
 MODEL_CONTEXT_WINDOWS: dict[str, int] = {
-    "anthropic.claude-3-sonnet": 200_000,
-    "anthropic.claude-3-haiku": 200_000,
-    "anthropic.claude-3-opus": 200_000,
-    "anthropic.claude-v2": 100_000,
-    "anthropic.claude-instant-v1": 100_000,
-    "amazon.titan-text-express-v1": 8_192,
-    "amazon.titan-text-lite-v1": 4_096,
+    "gemini-2.5-flash": 200_000,
+    "gemini-2.0-flash": 200_000,
+    "gemini-1.5-pro": 200_000,
+    "gemini-1.5-flash": 100_000,
+    "gemini-1.0-pro": 100_000,
+    "text-embedding-004": 8_192,
+    "text-embedding-lite": 4_096,
     "default": 100_000,
 }
 
-# Average characters per token for Claude models (empirically ~3.5–4.0)
+# Average characters per token for Gemini models (empirically ~3.5–4.0)
 DEFAULT_CHARS_PER_TOKEN: float = 3.8
 
 
@@ -86,10 +86,10 @@ class TextTokenizer:
 
     Provides token counting, estimation, text chunking, and context
     window validation without requiring external tokenizer libraries.
-    Uses a character-ratio heuristic calibrated for Claude models.
+    Uses a character-ratio heuristic calibrated for Gemini models.
 
     Args:
-        model_id: Bedrock model identifier (used for context window lookup).
+        model_id: Gemini model identifier (used for context window lookup).
         chars_per_token: Character-to-token ratio for estimation.
         default_max_tokens: Fallback context window size.
     """
@@ -105,7 +105,7 @@ class TextTokenizer:
 
     def __init__(
         self,
-        model_id: str = "anthropic.claude-3-sonnet",
+        model_id: str = "gemini-2.5-flash",
         chars_per_token: float = DEFAULT_CHARS_PER_TOKEN,
         default_max_tokens: int | None = None,
     ) -> None:
@@ -398,7 +398,7 @@ class TextTokenizer:
         """Get the context window size for a model.
 
         Args:
-            model_id: Bedrock model identifier. Defaults to instance model.
+            model_id: Gemini model identifier. Defaults to instance model.
 
         Returns:
             Maximum context window in tokens.

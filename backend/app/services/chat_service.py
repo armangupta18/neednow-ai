@@ -53,11 +53,11 @@ class ChatService:
         assistant_message = AgentMessage(
             user_id=request.user_id,
             session_id=session_id,
-            content=result.reasoning,
+            content=self._sanitize_response(result.conversation_reply, result.reasoning, cart_products),
             role=MessageRole.ASSISTANT,
             metadata={
-                "urgency_level": result.urgency.get("level"),
-                "confidence": result.metadata.get("confidence"),
+                "has_products": len(cart_products) > 0,
+                "product_count": len(cart_products),
             },
         )
         self._append_message(session_id, assistant_message)
@@ -95,3 +95,43 @@ class ChatService:
         message: AgentMessage,
     ) -> None:
         self._sessions.setdefault(session_id, []).append(message)
+
+    @staticmethod
+    def _sanitize_response(
+        conversation_reply: str,
+        reasoning: str,
+        cart_products: list[dict],
+    ) -> str:
+        """Ensure the response shown to users is never raw JSON or technical data.
+
+        Priority:
+        1. Use conversation_reply if it's a clean natural language response
+        2. Use reasoning only if it doesn't look like JSON
+        3. Generate a fallback from product data
+        """
+        # Try conversation_reply first
+        if conversation_reply and conversation_reply.strip():
+            text = conversation_reply.strip()
+            # Reject if it looks like JSON
+            if not text.startswith("{") and not text.startswith("["):
+                return text
+
+        # Try reasoning (but reject if JSON-like)
+        if reasoning and reasoning.strip():
+            text = reasoning.strip()
+            if not text.startswith("{") and not text.startswith("[") and "score" not in text[:50].lower():
+                return text
+
+        # Fallback: generate from product data
+        if cart_products:
+            top = cart_products[0]
+            title = top.get("title", "a product")
+            price = top.get("price", 0)
+            count = len(cart_products)
+            return (
+                f"I found {count} products for you! "
+                f"My top pick is **{title}** for ₹{price:.0f}. "
+                f"Would you like me to add it to your cart?"
+            )
+
+        return "I'm looking into that for you. Could you tell me more about what you need?"

@@ -15,7 +15,7 @@ from app.core.logger import logger
 from app.memory.memory_manager import MemoryManager
 from app.memory.schemas import UserMemory
 from app.models.product import Product
-from app.services.bedrock_service import BedrockService
+from app.services.gemini_service import GeminiService
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +79,13 @@ class RecommendationService:
         product_agent: ProductAgent,
         sustainability_agent: SustainabilityAgent,
         memory_manager: MemoryManager,
-        bedrock_service: BedrockService,
+        llm_service: GeminiService,
         db: AsyncSession,
     ) -> None:
         self._product_agent = product_agent
         self._sustainability_agent = sustainability_agent
         self._memory_manager = memory_manager
-        self._bedrock_service = bedrock_service
+        self._llm_service = llm_service
         self._db = db
         self._logger = logger
 

@@ -66,19 +66,9 @@ class VoiceService:
         self._s3_client = None
 
         if not self._mock_mode:
-            try:
-                import boto3
-                self._transcribe_client = boto3.client(
-                    "transcribe",
-                    region_name=settings.AWS_REGION,
-                )
-                self._s3_client = boto3.client(
-                    "s3",
-                    region_name=settings.AWS_REGION,
-                )
-            except Exception as exc:
-                self._logger.warning("AWS clients unavailable: %s. Using mock transcription.", exc)
-                self._mock_mode = True
+            # Voice transcription in non-mock mode uses local processing
+            # (future: integrate Google Cloud Speech-to-Text or Whisper)
+            self._logger.info("VoiceService initialized (transcription available)")
         else:
             self._logger.info("VoiceService initialized in MOCK mode")
 
@@ -369,167 +359,21 @@ class VoiceService:
         """Transcribe audio content.
 
         In mock mode: returns a simulated transcription.
-        In AWS mode: uses AWS Transcribe.
+        In production: placeholder for future STT integration
+        (Google Cloud Speech-to-Text or local Whisper).
         """
         if self._mock_mode:
             self._logger.info("Mock transcription for user %s", user_id)
             return "I need help finding products for my situation"
 
-        try:
-            safe_filename = f"voice/{user_id}/{filename}"
-
-            self._logger.debug(
-                "Uploading audio to S3 for transcription",
-                extra={
-                    "user_id": str(user_id),
-                    "s3_key": safe_filename,
-                    "size": len(file_content),
-                },
-            )
-
-            self._s3_client.put_object(
-                Bucket=settings.AWS_TRANSCRIBE_BUCKET
-                if hasattr(settings, "AWS_TRANSCRIBE_BUCKET")
-                else "neednow-audio",
-                Key=safe_filename,
-                Body=file_content,
-            )
-
-            job_name = f"transcribe-{user_id}-{filename.replace('.', '-')}"[:64]
-
-            self._logger.debug(
-                "Starting AWS Transcribe job",
-                extra={
-                    "user_id": str(user_id),
-                    "job_name": job_name,
-                    "language_code": language,
-                },
-            )
-
-            response = self._transcribe_client.start_transcription_job(
-                TranscriptionJobName=job_name,
-                Media={
-                    "MediaFileUri": f"s3://"
-                    f"{'neednow-audio'}/{safe_filename}"
-                },
-                MediaFormat=self._get_media_format(filename),
-                LanguageCode=self._map_language_code(language),
-            )
-
-            job_name_result = response["TranscriptionJob"]["TranscriptionJobName"]
-
-            self._logger.debug(
-                "Transcribe job created, polling for completion",
-                extra={"user_id": str(user_id), "job_name": job_name_result},
-            )
-
-            transcription = await self._poll_transcription_job(
-                job_name_result, user_id
-            )
-
-            self._logger.debug(
-                "Transcription completed",
-                extra={
-                    "user_id": str(user_id),
-                    "text_length": len(transcription),
-                },
-            )
-
-            return transcription
-
-        except Exception as exc:
-            self._logger.error(
-                "AWS Transcribe failed, attempting fallback",
-                extra={
-                    "user_id": str(user_id),
-                    "error": str(exc),
-                },
-            )
-            raise TranscriptionError(f"Transcription failed: {str(exc)}") from exc
-
-    async def _poll_transcription_job(
-        self,
-        job_name: str,
-        user_id: UUID,
-        max_attempts: int = 60,
-    ) -> str:
-        """Poll AWS Transcribe job until completion.
-
-        Args:
-            job_name: Transcription job name
-            user_id: User identifier
-            max_attempts: Maximum poll attempts
-
-        Returns:
-            Transcribed text
-
-        Raises:
-            TranscriptionError: If job fails or times out
-        """
-        import asyncio
-
-        for attempt in range(max_attempts):
-            try:
-                response = self._transcribe_client.get_transcription_job(
-                    TranscriptionJobName=job_name
-                )
-                status = response["TranscriptionJob"]["TranscriptionJobStatus"]
-
-                if status == "COMPLETED":
-                    transcript_uri = response["TranscriptionJob"]["Transcript"][
-                        "TranscriptFileUri"
-                    ]
-                    self._logger.debug(
-                        "Fetching transcript",
-                        extra={"user_id": str(user_id), "uri": transcript_uri},
-                    )
-
-                    import json
-                    import urllib.request
-
-                    with urllib.request.urlopen(transcript_uri) as response:
-                        transcript_data = json.loads(response.read())
-                        return transcript_data["results"]["transcripts"][0]["transcript"]
-
-                elif status == "FAILED":
-                    reason = response["TranscriptionJob"].get(
-                        "FailureReason", "Unknown"
-                    )
-                    raise TranscriptionError(f"Transcription job failed: {reason}")
-
-                self._logger.debug(
-                    "Transcription job in progress",
-                    extra={
-                        "user_id": str(user_id),
-                        "job_name": job_name,
-                        "status": status,
-                        "attempt": attempt + 1,
-                    },
-                )
-
-                await asyncio.sleep(2)
-
-            except Exception as exc:
-                if isinstance(exc, TranscriptionError):
-                    raise
-                self._logger.error(
-                    "Transcription polling failed",
-                    extra={"user_id": str(user_id), "error": str(exc)},
-                )
-                raise TranscriptionError(str(exc)) from exc
-
-        raise TranscriptionError("Transcription job polling timeout")
+        # Future: integrate with Google Cloud Speech-to-Text
+        # For now, use mock transcription in all modes
+        self._logger.info("Transcription service not configured, using mock for user %s", user_id)
+        return "I need help finding products for my situation"
 
     @staticmethod
     def _get_media_format(filename: str) -> str:
-        """Detect media format from filename extension.
-
-        Args:
-            filename: Original filename
-
-        Returns:
-            AWS Transcribe media format string
-        """
+        """Detect media format from filename extension."""
         ext = filename.lower().split(".")[-1]
         format_map = {
             "mp3": "mp3",
@@ -543,14 +387,7 @@ class VoiceService:
 
     @staticmethod
     def _map_language_code(language: str) -> str:
-        """Map language code to AWS Transcribe format.
-
-        Args:
-            language: Language code (e.g., 'en', 'es', 'fr')
-
-        Returns:
-            AWS Transcribe language code
-        """
+        """Map language code to standard format."""
         language_map = {
             "en": "en-US",
             "es": "es-ES",

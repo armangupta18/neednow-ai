@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from app.services.bedrock_service import (
-    BedrockService,
+from app.services.gemini_service import (
+    GeminiService,
 )
 
 from app.agents.urgency.prompt import (
@@ -26,9 +26,9 @@ class UrgencyAgent:
 
     def __init__(
         self,
-        bedrock_service: BedrockService,
+        llm_service: GeminiService,
     ):
-        self.bedrock = bedrock_service
+        self.llm = llm_service
 
     async def analyze(
         self,
@@ -49,7 +49,7 @@ User Context:
 {user_context}
 """
 
-        response = await self.bedrock.invoke(
+        response = await self.llm.invoke(
             system_prompt=URGENCY_SYSTEM_PROMPT,
             user_prompt=prompt,
         )

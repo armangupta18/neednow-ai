@@ -26,7 +26,7 @@ export default function Footer() {
 
           {/* Attribution */}
           <p className="text-xs text-slate-400">
-            Powered by Amazon Bedrock • HackOn 6.0
+            Powered by Google Gemini • HackOn 6.0
           </p>
         </div>
       </div>

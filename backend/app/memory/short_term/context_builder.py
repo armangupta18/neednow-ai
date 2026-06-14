@@ -91,7 +91,7 @@ class ContextBuilder:
 
     Architecture:
     - Integrates with SessionMemory for interaction history
-    - Manages token limits for Claude/Bedrock compatibility
+    - Manages token limits for Gemini compatibility
     - Supports context truncation and summarization
     - Formats context for LLM prompts
     - Tracks metadata for context decisions
@@ -514,7 +514,7 @@ class ContextBuilder:
         """Estimate token count for context.
 
         Uses conservative approximation: characters * TOKENS_PER_CHARACTER
-        For Claude models, typically ~4-5 characters per token.
+        For Gemini models, typically ~4-5 characters per token.
 
         Args:
             context: ConversationContext to estimate
@@ -524,7 +524,7 @@ class ContextBuilder:
 
         Note:
             Future: Integrate with actual tokenizer for precise counts.
-            Claude tokenizer API can be used for exact token calculation.
+            Gemini tokenizer API can be used for exact token calculation.
         """
         token_count = 0
 
@@ -557,7 +557,7 @@ class ContextBuilder:
             Summary text
 
         Note:
-            Future: Integrate with Bedrock Claude for intelligent summarization.
+            Future: Integrate with Gemini for intelligent summarization.
             Could use lightweight model or extractive summarization.
         """
         if not messages:

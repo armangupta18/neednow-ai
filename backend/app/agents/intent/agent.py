@@ -1,5 +1,5 @@
-from app.services.bedrock_service import (
-    BedrockService,
+from app.services.gemini_service import (
+    GeminiService,
 )
 
 from app.agents.intent.prompt import (
@@ -19,16 +19,16 @@ class IntentAgent:
 
     def __init__(
         self,
-        bedrock_service: BedrockService,
+        llm_service: GeminiService,
     ):
-        self.bedrock = bedrock_service
+        self.llm = llm_service
 
     async def analyze(
         self,
         user_input: str,
     ) -> IntentResponse:
 
-        raw_response = await self.bedrock.invoke(
+        raw_response = await self.llm.invoke(
             system_prompt=INTENT_SYSTEM_PROMPT,
             user_prompt=user_input,
         )

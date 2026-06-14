@@ -65,19 +65,26 @@ class CartService:
     @classmethod
     def _get_demo_cart_response(cls, user_id: UUID) -> CartResponse:
         """Build a CartResponse from the demo cart."""
-        from uuid import uuid4
+        from uuid import uuid4, UUID as UUIDType
         demo = cls._demo_carts.get(str(user_id), {"products": [], "total": 0})
-        items = [
-            CartItemResponse(
-                id=uuid4(),
-                product_id=p.get("id", str(uuid4())),
-                product_name=p.get("title", "Product"),
-                quantity=1,
-                unit_price=p.get("price", 0.0),
-                line_total=p.get("price", 0.0),
+        items = []
+        for p in demo["products"][:10]:
+            # Handle product_id: use as UUID if valid, otherwise generate one
+            raw_id = p.get("id", "")
+            try:
+                pid = UUIDType(raw_id) if raw_id else uuid4()
+            except (ValueError, AttributeError):
+                pid = uuid4()
+            items.append(
+                CartItemResponse(
+                    id=uuid4(),
+                    product_id=pid,
+                    product_name=p.get("title", "Product"),
+                    quantity=1,
+                    unit_price=p.get("price", 0.0),
+                    line_total=p.get("price", 0.0),
+                )
             )
-            for p in demo["products"][:10]
-        ]
         return CartResponse(
             user_id=user_id,
             cart_id=uuid4(),
@@ -92,19 +99,31 @@ class CartService:
         product_id: UUID,
         quantity: int,
     ) -> CartMutationResponse:
-        """Add a product to the user's cart."""
+        """Add a product to the user's cart.
+
+        Auto-creates a demo cart if none exists (no DB user required).
+        """
         self._logger.info("Adding item to cart: user=%s product=%s qty=%d", user_id, product_id, quantity)
 
-        # Demo cart mode: add product by looking it up from DB
-        if self._has_demo_cart(str(user_id)):
-            product = await self._repository.get_product(product_id)
-            if product is None:
-                raise ProductNotFoundError(f"Product {product_id} not found")
+        # Ensure demo cart exists for this user (auto-create if missing)
+        if not self._has_demo_cart(str(user_id)):
+            self._logger.info("Auto-creating demo cart for user %s", user_id)
+            self._demo_carts[str(user_id)] = {"products": [], "total": 0}
 
+        # Try DB mode first (for users with real DB records)
+        try:
+            product = await self._repository.get_product(product_id)
+        except Exception:
+            product = None
+
+        if product is not None:
+            # Add to demo cart with real product data
             demo = self._demo_carts[str(user_id)]
-            # Check if already in cart
             existing = next((p for p in demo["products"] if p.get("id") == str(product_id)), None)
-            if not existing:
+            if existing:
+                # Already in cart — increment quantity tracking (demo doesn't track qty per item)
+                self._logger.info("Product already in demo cart: %s", product.title)
+            else:
                 demo["products"].append({
                     "id": str(product_id),
                     "title": product.title,
@@ -112,90 +131,20 @@ class CartService:
                     "score": 0.0,
                 })
             demo["total"] = sum(p.get("price", 0) for p in demo["products"])
+
+            self._logger.info(
+                "Item added to demo cart | user=%s | product=%s | cart_size=%d",
+                user_id, product.title, len(demo["products"]),
+            )
+
             return CartMutationResponse(
                 message="Item added to cart",
                 cart=self._get_demo_cart_response(user_id),
             )
 
-        # DB mode
-        product = await self._repository.get_product(product_id)
-        if product is None:
-            raise ProductNotFoundError(f"Product {product_id} not found")
-
-        if product.stock < quantity:
-            self._logger.warning(
-                "Insufficient stock",
-                extra={
-                    "product_id": str(product_id),
-                    "requested": quantity,
-                    "available": product.stock,
-                },
-            )
-            raise InsufficientStockError(
-                f"Insufficient stock for product {product_id}"
-            )
-
-        try:
-            cart = await self._repository.get_or_create_cart(user_id)
-        except ValueError as exc:
-            self._logger.error(
-                "Failed to create or retrieve cart",
-                extra={"user_id": str(user_id)},
-            )
-            raise CartNotFoundError(str(exc)) from exc
-
-        existing_item = await self._repository.get_cart_item(cart.id, product_id)
-
-        if existing_item is not None:
-            existing_item.quantity += quantity
-            self._logger.debug(
-                "Updated existing cart item quantity",
-                extra={
-                    "cart_item_id": str(existing_item.id),
-                    "new_quantity": existing_item.quantity,
-                },
-            )
-        else:
-            new_item = CartItem(
-                cart_id=cart.id,
-                product_id=product_id,
-                quantity=quantity,
-                unit_price=product.price,
-            )
-            cart.items.append(new_item)
-            self._logger.debug(
-                "Added new cart item",
-                extra={
-                    "product_id": str(product_id),
-                    "quantity": quantity,
-                    "unit_price": product.price,
-                },
-            )
-
-        cart.total_amount = self._calculate_total(cart)
-        await self._repository.save()
-        cart = await self._repository.get_cart_by_user_id(user_id)
-        if cart is None:
-            self._logger.error(
-                "Cart not found after update",
-                extra={"user_id": str(user_id)},
-            )
-            raise CartNotFoundError(f"Cart not found after update for user {user_id}")
-
-        self._logger.info(
-            "Item added to cart successfully",
-            extra={
-                "user_id": str(user_id),
-                "cart_id": str(cart.id),
-                "cart_total": cart.total_amount,
-            },
-        )
-
-        cart_response = self._to_cart_response(user_id, cart)
-        return CartMutationResponse(
-            message="Item added to cart",
-            cart=cart_response,
-        )
+        # Product not found in DB — return error
+        self._logger.warning("Product %s not found in database", product_id)
+        raise ProductNotFoundError(f"Product {product_id} not found")
 
     async def remove_item(
         self,
@@ -207,7 +156,7 @@ class CartService:
         """Remove or reduce quantity of a product in the user's cart."""
         self._logger.info("Removing item from cart: user=%s product=%s", user_id, product_id)
 
-        # Demo cart mode
+        # Demo cart mode (primary path)
         if self._has_demo_cart(str(user_id)):
             demo = self._demo_carts[str(user_id)]
             demo["products"] = [p for p in demo["products"] if p.get("id") != str(product_id)]
@@ -218,65 +167,28 @@ class CartService:
                 cart=self._get_demo_cart_response(user_id),
             )
 
-        # DB mode
-
+        # DB mode fallback
         cart = await self._repository.get_cart_by_user_id(user_id)
         if cart is None:
-            self._logger.warning(
-                "Cart not found for user",
-                extra={"user_id": str(user_id)},
-            )
+            self._logger.warning("No cart found for user %s", user_id)
             raise CartNotFoundError(f"Cart not found for user {user_id}")
 
         item = await self._repository.get_cart_item(cart.id, product_id)
         if item is None:
-            self._logger.warning(
-                "Product not in cart",
-                extra={
-                    "cart_id": str(cart.id),
-                    "product_id": str(product_id),
-                },
-            )
-            raise ProductNotFoundError(
-                f"Product {product_id} not in cart {cart.id}"
-            )
+            raise ProductNotFoundError(f"Product {product_id} not in cart")
 
         if quantity is not None and quantity < item.quantity:
             item.quantity -= quantity
-            self._logger.debug(
-                "Reduced cart item quantity",
-                extra={
-                    "cart_item_id": str(item.id),
-                    "new_quantity": item.quantity,
-                },
-            )
         else:
             await self._repository.delete_item(item)
             if item in cart.items:
                 cart.items.remove(item)
-            self._logger.debug(
-                "Removed cart item",
-                extra={"cart_item_id": str(item.id)},
-            )
 
         cart.total_amount = self._calculate_total(cart)
         await self._repository.save()
         cart = await self._repository.get_cart_by_user_id(user_id)
         if cart is None:
-            self._logger.error(
-                "Cart not found after update",
-                extra={"user_id": str(user_id)},
-            )
             raise CartNotFoundError(f"Cart not found after update for user {user_id}")
-
-        self._logger.info(
-            "Item removed from cart successfully",
-            extra={
-                "user_id": str(user_id),
-                "cart_id": str(cart.id),
-                "cart_total": cart.total_amount,
-            },
-        )
 
         cart_response = self._to_cart_response(user_id, cart)
         return CartMutationResponse(
@@ -288,21 +200,16 @@ class CartService:
         """Retrieve the user's current cart.
 
         Falls back to demo cart (from chat recommendations) if no DB cart exists.
+        Auto-creates an empty cart if none exists at all.
         """
-        self._logger.info(
-            "Retrieving cart",
-            extra={"user_id": str(user_id)},
-        )
+        self._logger.info("Retrieving cart for user=%s", user_id)
 
+        # Check DB first
         cart = await self._repository.get_cart_by_user_id(user_id)
         if cart is not None:
             self._logger.debug(
-                "Cart retrieved from DB",
-                extra={
-                    "cart_id": str(cart.id),
-                    "item_count": len(cart.items),
-                    "total": cart.total_amount,
-                },
+                "Cart retrieved from DB: cart_id=%s items=%d",
+                cart.id, len(cart.items),
             )
             return self._to_cart_response(user_id, cart)
 
@@ -311,39 +218,28 @@ class CartService:
             self._logger.info("Returning demo cart for user %s", user_id)
             return self._get_demo_cart_response(user_id)
 
-        self._logger.warning(
-            "No cart found for user",
-            extra={"user_id": str(user_id)},
-        )
-        raise CartNotFoundError(f"Cart not found for user {user_id}")
+        # Auto-create empty demo cart (prevents "Cart not found" errors)
+        self._logger.info("Auto-creating empty demo cart for user %s", user_id)
+        self._demo_carts[str(user_id)] = {"products": [], "total": 0}
+        return self._get_demo_cart_response(user_id)
 
     async def clear_cart(self, user_id: UUID) -> CartClearResponse:
         """Clear all items from the user's cart."""
         self._logger.info("Clearing cart: user=%s", user_id)
 
-        # Demo cart mode
+        # Demo cart mode (always clear it if it exists)
         if self._has_demo_cart(str(user_id)):
             self._demo_carts[str(user_id)] = {"products": [], "total": 0}
             self._logger.info("Demo cart cleared for user %s", user_id)
             return CartClearResponse(user_id=user_id)
 
         # DB mode
-
         cart = await self._repository.get_cart_by_user_id(user_id)
-        if cart is None:
-            self._logger.warning(
-                "Cart not found for user",
-                extra={"user_id": str(user_id)},
-            )
-            raise CartNotFoundError(f"Cart not found for user {user_id}")
+        if cart is not None:
+            await self._repository.clear_cart_items(cart)
+            self._logger.info("DB cart cleared for user %s", user_id)
 
-        await self._repository.clear_cart_items(cart)
-
-        self._logger.info(
-            "Cart cleared successfully",
-            extra={"user_id": str(user_id), "cart_id": str(cart.id)},
-        )
-
+        # Always return success (even if no cart existed)
         return CartClearResponse(user_id=user_id)
 
     async def calculate_total(self, user_id: UUID) -> float:

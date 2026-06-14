@@ -12,6 +12,7 @@ BundleService directly.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -118,13 +119,27 @@ def mock_retrieval_service(
 
 
 @pytest.fixture
+def mock_llm_service() -> AsyncMock:
+    """Mock GeminiService for ProductAgent."""
+    service = AsyncMock()
+    service.invoke = AsyncMock(return_value=json.dumps({
+        "recommendations": [
+            {"product_name": "Test Product A", "reason": "Relevant to situation", "priority": 1},
+            {"product_name": "Test Product B", "reason": "Supporting item", "priority": 2},
+        ]
+    }))
+    return service
+
+
+@pytest.fixture
 def product_agent(
-    mock_embedding_service: AsyncMock, mock_retrieval_service: AsyncMock
+    mock_embedding_service: AsyncMock, mock_retrieval_service: AsyncMock, mock_llm_service: AsyncMock
 ) -> ProductAgent:
     """Create a ProductAgent with mocked services."""
     return ProductAgent(
         embedding_service=mock_embedding_service,
         retrieval_service=mock_retrieval_service,
+        llm_service=mock_llm_service,
     )
 
 
@@ -484,7 +499,7 @@ class TestNoResultsCase:
         mock_retrieval = AsyncMock()
         mock_retrieval.retrieve = AsyncMock(return_value=([], {}))
 
-        agent = ProductAgent(
+        agent = ProductAgent(llm_service=AsyncMock(),
             embedding_service=mock_embedding_service,
             retrieval_service=mock_retrieval,
         )
@@ -509,7 +524,7 @@ class TestNoResultsCase:
         mock_retrieval = AsyncMock()
         mock_retrieval.retrieve = AsyncMock(return_value=([], {}))
 
-        agent = ProductAgent(
+        agent = ProductAgent(llm_service=AsyncMock(),
             embedding_service=mock_embedding_service,
             retrieval_service=mock_retrieval,
         )
@@ -542,7 +557,7 @@ class TestNoResultsCase:
             return_value=([single_product], {str(single_product.id): 0.8})
         )
 
-        agent = ProductAgent(
+        agent = ProductAgent(llm_service=AsyncMock(),
             embedding_service=mock_embedding_service,
             retrieval_service=mock_retrieval,
         )

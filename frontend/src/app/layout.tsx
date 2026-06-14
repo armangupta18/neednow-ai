@@ -8,7 +8,7 @@ import Footer from "@/components/layout/Footer";
 export const metadata: Metadata = {
   title: "NeedNow AI — Instant Shopping Intelligence",
   description:
-    "AI-powered shopping assistant for healthcare and emergency product needs. Situation-to-cart in seconds, powered by Amazon Bedrock.",
+    "AI-powered shopping assistant for healthcare and emergency product needs. Situation-to-cart in seconds, powered by Google Gemini.",
   keywords: ["AI shopping", "emergency delivery", "healthcare products", "NeedNow"],
   authors: [{ name: "NeedNow AI Team" }],
 };

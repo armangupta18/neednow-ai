@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from app.memory.memory_manager import (
     MemoryManager,
@@ -32,6 +33,10 @@ from app.agents.supervisor.reasoning import (
     ReasoningBuilder,
 )
 
+from app.agents.supervisor.conversation import (
+    ConversationBuilder,
+)
+
 
 class SupervisorAgent:
 
@@ -63,6 +68,13 @@ class SupervisorAgent:
         user_id,
         situation: str,
     ) -> SupervisorResponse:
+
+        logger = logging.getLogger("supervisor")
+        logger.info(
+            "Chat flow started | user=%s | message=%s",
+            user_id,
+            situation[:100],
+        )
 
         try:
             memory = (
@@ -107,6 +119,14 @@ class SupervisorAgent:
             )
         )
 
+        logger.info(
+            "Step 1 complete | intent=%s | category=%s | urgency=%s | keywords=%s",
+            intent_result.intent,
+            intent_result.category,
+            urgency_result.urgency.value,
+            intent_result.keywords[:5] if intent_result.keywords else [],
+        )
+
         # --------------------------------
         # STEP 2
         # Product Recommendations
@@ -127,6 +147,13 @@ class SupervisorAgent:
                 category=
                 intent_result.category,
             )
+        )
+
+        logger.info(
+            "Step 2 complete | products=%d | confidence=%.2f | top=%s",
+            len(products_result.top_products),
+            products_result.confidence,
+            [p.title[:30] for p in products_result.top_products[:4]],
         )
 
         # --------------------------------
@@ -172,11 +199,17 @@ class SupervisorAgent:
 
                     "score":
                     p.ranking_score,
+
+                    "reason":
+                    p.reason or "Matched by relevance",
+
+                    "priority":
+                    p.priority or (i + 1),
                 }
 
-                for p in
+                for i, p in enumerate(
                 products_result
-                .top_products
+                .top_products)
             ],
 
             "bundles": [
@@ -205,33 +238,42 @@ class SupervisorAgent:
         # Reasoning
         # --------------------------------
 
-        reasoning = (
-            ReasoningBuilder.build(
-                intent=
-                intent_result,
-
-                urgency=
-                urgency_result,
-
-                products=
-                products_result,
-
-                sustainability=
-                sustainability_result,
-            )
+        reasoning = await ReasoningBuilder.build_async(
+            intent=intent_result,
+            urgency=urgency_result,
+            products=products_result,
+            sustainability=sustainability_result,
+            situation=situation,
         )
 
+        # Only show eco alternative if one genuinely exists
         eco = None
-
-        if (
-            sustainability_result
-            .eco_alternatives
-        ):
-            eco = (
-                sustainability_result
-                .eco_alternatives[0]
-                .model_dump()
+        if sustainability_result.eco_alternatives:
+            # Pick the one with highest carbon savings
+            best_eco = max(
+                sustainability_result.eco_alternatives,
+                key=lambda a: a.carbon_saved,
             )
+            # Only show if there's actual carbon savings
+            if best_eco.carbon_saved > 0:
+                eco = best_eco.model_dump()
+
+        # Generate conversational response (user-facing, no technical data)
+        conversation_reply = await ConversationBuilder.generate_response(
+            situation=situation,
+            intent=intent_result,
+            urgency=urgency_result,
+            products=products_result,
+            sustainability=sustainability_result,
+        )
+
+        logger.info(
+            "Chat flow complete | user=%s | products=%d | urgency=%s | eco=%s",
+            user_id,
+            len(products_result.top_products),
+            urgency_result.urgency.value,
+            "yes" if eco else "none",
+        )
 
         return SupervisorResponse(
 
@@ -251,6 +293,8 @@ class SupervisorAgent:
             },
 
             reasoning=reasoning,
+
+            conversation_reply=conversation_reply,
 
             eco_alternative=eco,
 

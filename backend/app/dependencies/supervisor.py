@@ -13,7 +13,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
-from app.services.bedrock_service import BedrockService
+from app.services.gemini_service import GeminiService
 from app.memory.memory_repository import MemoryRepository
 from app.memory.memory_manager import MemoryManager
 from app.agents.intent.agent import IntentAgent
@@ -40,13 +40,13 @@ def get_supervisor(
     """
 
     # Core services
-    bedrock = BedrockService()
+    llm = GeminiService()
     memory_repo = MemoryRepository(db)
     memory_manager = MemoryManager(memory_repo)
 
     # Intent & Urgency agents (no external dependencies)
-    intent_agent = IntentAgent(bedrock)
-    urgency_agent = UrgencyAgent(bedrock)
+    intent_agent = IntentAgent(llm)
+    urgency_agent = UrgencyAgent(llm)
 
     # Product agent (depends on FAISS index — may not exist)
     try:
@@ -80,6 +80,7 @@ def get_supervisor(
     product_agent = ProductAgent(
         embedding_service=embedding_service,
         retrieval_service=retrieval_service,
+        llm_service=llm,
     )
 
     # Sustainability agent
@@ -95,6 +96,12 @@ def get_supervisor(
         # Create a minimal fallback
         sustainability_agent = SustainabilityAgent.__new__(SustainabilityAgent)
         sustainability_agent.retrieval_service = None
+
+    # Inject LLM into ReasoningBuilder for Gemini-powered reasoning
+    from app.agents.supervisor.reasoning import ReasoningBuilder
+    from app.agents.supervisor.conversation import ConversationBuilder
+    ReasoningBuilder.set_llm(llm)
+    ConversationBuilder.set_llm(llm)
 
     return SupervisorAgent(
         intent_agent=intent_agent,

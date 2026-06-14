@@ -1,8 +1,8 @@
 /**
- * Amazon Bedrock integration helpers for NeedNow AI.
+ * LLM integration helpers for NeedNow AI.
  *
- * Client-side utilities for streaming responses from Bedrock-powered
- * endpoints. The actual Bedrock invocation happens server-side —
+ * Client-side utilities for streaming responses from Gemini-powered
+ * endpoints. The actual Gemini invocation happens server-side —
  * this module handles the frontend streaming consumption.
  */
 
@@ -32,12 +32,12 @@ export interface StreamOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Consume a Server-Sent Events stream from a Bedrock-powered endpoint.
+ * Consume a Server-Sent Events stream from a Gemini-powered endpoint.
  *
  * The backend streams partial responses via SSE as the LLM generates text.
  * This function parses the event stream and invokes typed callbacks.
  */
-export async function consumeBedrockStream(
+export async function consumeLLMStream(
   url: string,
   body: Record<string, unknown>,
   options: StreamOptions
@@ -109,11 +109,13 @@ export async function consumeBedrockStream(
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Bedrock model identifiers (for display/metadata) */
-export const BEDROCK_MODELS = {
-  CLAUDE_SONNET: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-  TITAN_EMBED: "amazon.titan-embed-text-v2:0",
+/** LLM model identifiers (for display/metadata) */
+export const GEMINI_MODELS = {
+  GEMINI_FLASH: "gemini-2.5-flash",
+  TEXT_EMBEDDING: "text-embedding-004",
 } as const;
 
 /** Max tokens configured on backend */
-export const BEDROCK_MAX_TOKENS = 4096;
+export const GEMINI_MAX_TOKENS = 4096;
+
+// Legacy exports removed — use GEMINI_MODELS and GEMINI_MAX_TOKENS directly

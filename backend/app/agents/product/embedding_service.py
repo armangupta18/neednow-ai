@@ -1,8 +1,8 @@
 """Product embedding service.
 
 Generates text embeddings for product search.
-Supports mock mode (deterministic local embeddings) and
-Bedrock mode (Amazon Titan Embed).
+Uses a deterministic local embedding approach for development
+and can integrate with Google Gemini embedding API when available.
 """
 
 import hashlib
@@ -13,28 +13,28 @@ from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_DIM = 128  # Dimension for mock embeddings
+EMBEDDING_DIM = 128  # Dimension for local embeddings
 
 
 class EmbeddingService:
 
     def __init__(self) -> None:
         self._mock_mode = settings.USE_MOCK_LLM
-        self._client = None
+        self._model = None
 
         if self._mock_mode:
             logger.info("EmbeddingService initialized in MOCK mode (local embeddings)")
         else:
             try:
-                import boto3
-                self._client = boto3.client(
-                    "bedrock-runtime",
-                    region_name=settings.AWS_REGION,
-                )
-                logger.info("EmbeddingService initialized with Amazon Titan Embed")
+                import google.generativeai as genai
+
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                self._model = genai
+                logger.info("EmbeddingService initialized with Google Gemini Embedding")
             except Exception as exc:
                 logger.warning(
-                    "Failed to initialize Bedrock client: %s. Using mock embeddings.", exc
+                    "Failed to initialize Gemini embedding client: %s. Using local embeddings.",
+                    exc,
                 )
                 self._mock_mode = True
 
@@ -45,24 +45,21 @@ class EmbeddingService:
         """Generate an embedding vector for text.
 
         In mock mode: returns a deterministic 128-dim vector based on text hash.
-        In Bedrock mode: calls Amazon Titan Embed v2.
+        In Gemini mode: calls Google text-embedding model.
         """
         if self._mock_mode:
             return self._mock_embedding(text)
 
         try:
-            body = {"inputText": text}
-
-            response = self._client.invoke_model(
-                modelId="amazon.titan-embed-text-v2:0",
-                body=json.dumps(body),
+            result = self._model.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_document",
             )
-
-            result = json.loads(response["body"].read())
             return result["embedding"]
 
         except Exception as exc:
-            logger.warning("Bedrock embedding failed: %s. Using mock.", exc)
+            logger.warning("Gemini embedding failed: %s. Using local fallback.", exc)
             return self._mock_embedding(text)
 
     @staticmethod

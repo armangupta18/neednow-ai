@@ -33,13 +33,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # OpenAI (optional)
-    OPENAI_API_KEY: str | None = None
-
-    # AWS
-    AWS_ACCESS_KEY_ID: str | None = None
-    AWS_SECRET_ACCESS_KEY: str | None = None
-    AWS_REGION: str = "us-east-1"
+    # Gemini
+    GEMINI_API_KEY: str = ""
 
     # FAISS
     FAISS_INDEX_PATH: str = "data/faiss"

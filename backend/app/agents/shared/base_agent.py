@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.logger import logger
 from app.core.settings import settings
-from app.services.bedrock_service import BedrockService
+from app.services.gemini_service import GeminiService
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
@@ -52,14 +52,14 @@ class AgentOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class BedrockAgentConfig(BaseModel):
-    """Bedrock Claude Sonnet invocation defaults for LLM-backed agents."""
+class LLMAgentConfig(BaseModel):
+    """Gemini invocation defaults for LLM-backed agents."""
 
     model_config = ConfigDict(frozen=True)
 
-    model_id: str = Field(default_factory=lambda: settings.BEDROCK_MODEL_ID)
+    model_id: str = Field(default_factory=lambda: settings.GEMINI_MODEL_ID)
     max_tokens: int = Field(
-        default_factory=lambda: settings.BEDROCK_MAX_TOKENS,
+        default_factory=lambda: settings.GEMINI_MAX_TOKENS,
         ge=1,
     )
     temperature: float = Field(default=0.1, ge=0.0, le=1.0)
@@ -74,8 +74,7 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
     ``validate_input()`` performs Pydantic coercion by default; override it
     or ``_validate_business_rules()`` for domain-specific checks.
 
-    Optional ``BedrockService`` injection enables future Claude Sonnet calls
-    via ``invoke_bedrock()``.
+    Optional ``GeminiService`` injection enables LLM calls via ``invoke_llm()``.
     """
 
     name: ClassVar[str]
@@ -93,11 +92,11 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
     def __init__(
         self,
-        bedrock_service: BedrockService | None = None,
-        bedrock_config: BedrockAgentConfig | None = None,
+        llm_service: GeminiService | None = None,
+        llm_config: LLMAgentConfig | None = None,
     ) -> None:
-        self._bedrock = bedrock_service
-        self._bedrock_config = bedrock_config or BedrockAgentConfig()
+        self._llm = llm_service
+        self._llm_config = llm_config or LLMAgentConfig()
         self._logger = logger.getChild(self.name)
 
     @property
@@ -147,7 +146,7 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         except Exception as exc:
             raise AgentExecutionError(self.name, str(exc)) from exc
 
-    async def invoke_bedrock(
+    async def invoke_llm(
         self,
         system_prompt: str,
         user_prompt: str,
@@ -156,29 +155,27 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         temperature: float | None = None,
     ) -> str:
         """
-        Invoke Amazon Bedrock Claude Sonnet for LLM-backed agents.
+        Invoke Google Gemini for LLM-backed agents.
 
-        Requires ``BedrockService`` to be provided at construction time.
-        ``max_tokens`` and ``temperature`` are reserved for future BedrockService
-        parameterization; defaults come from ``BedrockAgentConfig``.
+        Requires ``GeminiService`` to be provided at construction time.
         """
-        if self._bedrock is None:
+        if self._llm is None:
             raise AgentExecutionError(
                 self.name,
-                "BedrockService is not configured for this agent",
+                "GeminiService is not configured for this agent",
             )
 
-        _ = max_tokens or self._bedrock_config.max_tokens
-        _ = temperature if temperature is not None else self._bedrock_config.temperature
+        _ = max_tokens or self._llm_config.max_tokens
+        _ = temperature if temperature is not None else self._llm_config.temperature
 
         self._logger.debug(
-            "Invoking Bedrock model",
+            "Invoking LLM model",
             extra={
                 "agent": self.name,
-                "model_id": self._bedrock_config.model_id,
+                "model_id": self._llm_config.model_id,
             },
         )
-        return await self._bedrock.invoke(
+        return await self._llm.invoke(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
         )

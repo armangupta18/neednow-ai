@@ -30,7 +30,11 @@ export default function EcoAlternativeCard({
         </div>
       </div>
       <div className="mt-3 flex gap-4 text-xs">
-        <span className="text-green-700 font-medium">🌱 {formatCarbonSaved(carbonSaved)}</span>
+        {carbonSaved > 0 ? (
+          <span className="text-green-700 font-medium">🌱 {formatCarbonSaved(carbonSaved)}</span>
+        ) : (
+          <span className="text-slate-500 font-medium">🌱 Carbon impact data unavailable</span>
+        )}
         <span className="text-slate-600">
           {priceDifference > 0 ? `+${formatPrice(priceDifference)}` : formatPrice(Math.abs(priceDifference)) + " cheaper"}
         </span>

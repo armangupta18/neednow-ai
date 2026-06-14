@@ -100,9 +100,9 @@ export const PIPELINE_STEPS = [
 /** Model information */
 export const MODEL_CONFIG = {
   LLM: {
-    provider: "Amazon Bedrock",
-    model: "Claude 3.5 Sonnet",
-    modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    provider: "Google Gemini",
+    model: "Gemini 2.5 Flash",
+    modelId: "gemini-2.5-flash",
     maxTokens: 4096,
   },
   EMBEDDING: {

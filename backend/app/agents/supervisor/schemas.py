@@ -11,6 +11,9 @@ class SupervisorResponse(BaseModel):
 
     reasoning: str
 
+    conversation_reply: str = ""
+    """User-facing natural language response (no JSON, no technical data)."""
+
     eco_alternative: dict | None = None
 
     metadata: dict[str, Any] = {}
