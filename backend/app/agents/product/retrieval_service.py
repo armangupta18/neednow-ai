@@ -23,7 +23,7 @@ try:
     import faiss
 except ImportError:
     faiss = None  # type: ignore[assignment]
-    logger.warning("faiss package not installed. Retrieval will use fallback mode.")
+    logger.info("faiss package not installed — using database retrieval.")
 
 
 class RetrievalService:
@@ -71,10 +71,20 @@ class RetrievalService:
                 )
                 self.index = None
         else:
-            logger.warning(
-                "FAISS index not found at '%s'. Running in fallback mode.",
-                index_path,
-            )
+            # Index not present — create an empty one so it's ready when products are loaded.
+            # Fallback DB retrieval will be used for searches until the index is populated.
+            try:
+                Path(index_path).parent.mkdir(parents=True, exist_ok=True)
+                empty_index = faiss.IndexFlatL2(128)  # 128-dim default
+                faiss.write_index(empty_index, index_path)
+                self.index = None  # Leave None so DB fallback is used (index is empty)
+                logger.info("Initialized empty product index at '%s'", index_path)
+            except Exception:
+                self.index = None
+                logger.info(
+                    "Product index not found at '%s' — using database retrieval.",
+                    index_path,
+                )
 
     async def retrieve(
         self,

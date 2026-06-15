@@ -171,14 +171,14 @@ class MemoryManager:
     ) -> UserMemory:
         """Retrieve user memory as UserMemory schema (legacy compatibility).
 
+        If the user does not exist, returns an empty UserMemory without
+        raising an exception — the supervisor continues with defaults.
+
         Args:
             user_id: User identifier
 
         Returns:
-            UserMemory object
-
-        Raises:
-            MemoryNotFoundError: If user or memory not found
+            UserMemory object (empty if user not found)
         """
         self._logger.debug(
             "Retrieving user memory",
@@ -188,23 +188,23 @@ class MemoryManager:
         try:
             user = await self._repository.get_user(user_id)
             if not user:
-                self._logger.warning(
-                    "User not found during memory retrieval",
+                # No user record — return empty memory, log at DEBUG only
+                self._logger.debug(
+                    "No memory found for user, returning empty result",
                     extra={"user_id": str(user_id)},
                 )
-                raise MemoryNotFoundError(f"User {user_id} not found")
+                return UserMemory()
 
             memory_data = user.memory or {}
             return UserMemory(**memory_data)
 
-        except MemoryNotFoundError:
-            raise
         except Exception as exc:
             self._logger.error(
                 "Memory retrieval failed",
                 extra={"user_id": str(user_id), "error": str(exc)},
             )
-            raise MemoryManagerError(f"Failed to retrieve memory: {str(exc)}") from exc
+            # Return empty memory so the pipeline can continue
+            return UserMemory()
 
     async def get_memory_state(
         self,
