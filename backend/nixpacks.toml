@@ -5,7 +5,8 @@
 nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
-cmds = ["pip install --upgrade pip", "pip install -r requirements/requirements.txt"]
+cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
 
 [start]
 cmd = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+
