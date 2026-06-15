@@ -1,4 +1,8 @@
+"use client";
+
 import { useState } from "react";
+import api from "@/services/api";
+import { ENDPOINTS } from "@/constants/api";
 
 export function useSupervisor() {
   const [loading, setLoading] = useState(false);
@@ -6,26 +10,16 @@ export function useSupervisor() {
   const generateCart = async (situation: string) => {
     try {
       setLoading(true);
-
-      const response = await fetch("http://localhost:8000/api/v1/supervisor", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: "demo-user",
-          situation,
-        }),
+      // Uses the centralized Axios client — resolves to NEXT_PUBLIC_API_URL + /api/v1/intent
+      const response = await api.post(ENDPOINTS.INTENT, {
+        user_id: "550e8400-e29b-41d4-a716-446655440000",
+        text: situation,
       });
-
-      return await response.json();
+      return response.data;
     } finally {
       setLoading(false);
     }
   };
 
-  return {
-    loading,
-    generateCart,
-  };
+  return { loading, generateCart };
 }

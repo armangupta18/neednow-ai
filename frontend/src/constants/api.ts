@@ -1,32 +1,51 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-export const API_TIMEOUT = 30000;
+/**
+ * API configuration constants.
+ *
+ * NEXT_PUBLIC_API_URL must be the bare backend domain (no trailing slash, no /api/v1).
+ * Example:
+ *   Local:      http://localhost:8000
+ *   Production: https://neednow-ai-production.up.railway.app
+ *
+ * All ENDPOINTS paths include the /api/v1 prefix so requests resolve correctly
+ * when Axios appends them to the baseURL.
+ */
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export const API_TIMEOUT = 30_000;
 
 export const ENDPOINTS = {
-  CHAT: "/chat",
-  INTENT: "/intent",
+  CHAT: "/api/v1/chat",
+  CHAT_HISTORY: (sessionId: string) => `/api/v1/chat/${sessionId}/history`,
+  INTENT: "/api/v1/intent",
   CART: {
-    ADD: "/cart/add",
-    REMOVE: "/cart/remove",
-    GET: (userId: string) => `/cart/${userId}`,
-    CLEAR: (userId: string) => `/cart/${userId}`,
+    ADD: "/api/v1/cart/add",
+    REMOVE: "/api/v1/cart/remove",
+    GET: (userId: string) => `/api/v1/cart/${userId}`,
+    CLEAR: (userId: string) => `/api/v1/cart/${userId}`,
   },
   MEMORY: {
-    STORE: "/memory/store",
-    GET: (userId: string) => `/memory/${userId}`,
-    CLEAR: (userId: string) => `/memory/${userId}`,
+    STORE: "/api/v1/memory/store",
+    GET: (userId: string) => `/api/v1/memory/${userId}`,
+    CLEAR: (userId: string) => `/api/v1/memory/${userId}`,
   },
   VOICE: {
-    TRANSCRIBE: "/voice/transcribe",
-    CHAT: "/voice/chat",
+    TRANSCRIBE: "/api/v1/voice/transcribe",
+    CHAT: "/api/v1/voice/chat",
   },
   EMERGENCY: {
-    ANALYZE: "/emergency/analyze",
-    ESCALATE: "/emergency/escalate",
-    HEALTH: "/emergency/health",
+    ANALYZE: "/api/v1/emergency/analyze",
+    ESCALATE: "/api/v1/emergency/escalate",
+    HEALTH: "/api/v1/emergency/health",
   },
   SUSTAINABILITY: {
-    ANALYZE: "/sustainability/analyze",
-    RECOMMEND: "/sustainability/recommend",
-    SCORE: (productId: string) => `/sustainability/score/${productId}`,
+    ANALYZE: "/api/v1/sustainability/analyze",
+    RECOMMEND: "/api/v1/sustainability/recommend",
+    SCORE: (productId: string) => `/api/v1/sustainability/score/${productId}`,
+  },
+  ORDERS: {
+    PLACE: "/api/v1/orders",
+    LIST: (userId: string) => `/api/v1/orders/${userId}`,
+    GET: (userId: string, orderId: string) => `/api/v1/orders/${userId}/${orderId}`,
   },
 } as const;
