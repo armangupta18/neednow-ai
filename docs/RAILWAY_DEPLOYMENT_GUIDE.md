@@ -80,22 +80,22 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 web: uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 
-### `backend/runtime.txt`
-```
-python-3.11.9
-```
-
 ### `backend/nixpacks.toml`
 ```toml
+# Railway/Nixpacks build configuration for NeedNow AI Backend
+# Uses Nix-provided Python 3.11 (no mise, no runtime.txt)
+
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
-cmds = ["pip install -r requirements/requirements.txt"]
+cmds = ["pip install --upgrade pip", "pip install -r requirements/requirements.txt"]
 
 [start]
 cmd = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
 ```
+
+> **Note**: No `runtime.txt` file. That file triggers Railway's `mise` installer which can fail with GitHub artifact attestation errors. The `nixpacks.toml` provides Python 3.11 directly from Nix packages.
 
 ---
 
