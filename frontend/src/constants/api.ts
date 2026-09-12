@@ -12,7 +12,8 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export const API_TIMEOUT = 30_000;
+// Increase frontend HTTP timeout to 40s to match backend Gemini per-key timeout
+export const API_TIMEOUT = 40_000;
 
 export const ENDPOINTS = {
   CHAT: "/api/v1/chat",

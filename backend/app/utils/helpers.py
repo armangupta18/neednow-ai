@@ -15,8 +15,10 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, TypeVar, overload
@@ -505,3 +507,49 @@ class HelperUtils:
             return True
         except (ValueError, AttributeError):
             return False
+
+    @staticmethod
+    def extract_json(text: str) -> dict[str, Any] | list[Any] | None:
+        """Extract and parse JSON object or array from raw LLM text.
+
+        Repairs common LLM formatting flaws:
+        - Strips markdown code blocks (```json ... ```)
+        - Extracts the outermost {...} or [...] block
+        - Fixes trailing commas before } or ]
+        - Handles unescaped control characters or line breaks
+        """
+        if not text or not isinstance(text, str) or not text.strip():
+            return None
+
+        cleaned = text.strip()
+
+        # 1. Remove markdown code blocks if present
+        if "```" in cleaned:
+            match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+            if match:
+                cleaned = match.group(1).strip()
+            else:
+                cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+
+        # 2. Extract outermost `{...}` or `[...]`
+        json_match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", cleaned)
+        if json_match:
+            cleaned = json_match.group(1)
+
+        # 3. Strip trailing commas before closing braces/brackets
+        cleaned = re.sub(r",\s*([\}\]])", r"\1", cleaned)
+
+        # 4. First parse attempt
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
+
+        # 5. Secondary attempt: replace unescaped newlines inside strings
+        try:
+            sanitized = re.sub(r"(?<!\\)\n", " ", cleaned)
+            return json.loads(sanitized)
+        except Exception:
+            pass
+
+        return None

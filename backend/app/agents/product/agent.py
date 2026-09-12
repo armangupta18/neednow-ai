@@ -31,6 +31,7 @@ from app.agents.product.recommendation_prompt import (
     build_recommendation_user_prompt,
 )
 from app.services.gemini_service import GeminiService
+from app.utils.helpers import HelperUtils
 
 logger = logging.getLogger(__name__)
 
@@ -227,13 +228,15 @@ class ProductAgent:
 
     @staticmethod
     def _parse_gemini_response(raw: str) -> list[RecommendationItem]:
-        """Parse and validate Gemini JSON response."""
-        cleaned = raw.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned.replace("```json", "")
-        cleaned = cleaned.replace("```", "").strip()
+        """Parse and validate Gemini JSON response using robust extraction."""
+        # Use HelperUtils.extract_json which handles: markdown fences,
+        # trailing commas, unescaped newlines, partial JSON via best-effort.
+        data = HelperUtils.extract_json(raw)
 
-        data = json.loads(cleaned)
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"Gemini returned non-dict JSON. Raw preview: {raw[:120]!r}"
+            )
 
         # Validate with Pydantic
         output = RecommendationOutput(**data)

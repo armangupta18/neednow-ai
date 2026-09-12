@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  // Turbopack workspace root configuration
+  turbopack: {
+    root: path.resolve(__dirname, ".."),
+  },
+
   // Allow dev access from local network
   allowedDevOrigins: ["10.26.29.116"],
 
