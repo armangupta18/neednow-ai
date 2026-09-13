@@ -12,6 +12,49 @@ logger = logging.getLogger(__name__)
 class IntentParser:
 
     @staticmethod
+    def _coerce_text(value) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return cleaned or None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @staticmethod
+    def _coerce_number(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned) if "." in cleaned else int(cleaned)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _coerce_list(value) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return []
+            if "," in cleaned:
+                return [part.strip() for part in cleaned.split(",") if part.strip()]
+            return [cleaned]
+        return [str(value).strip()] if str(value).strip() else []
+
+    @staticmethod
     def parse(
         response_text: str,
         user_prompt: str = "",
@@ -34,6 +77,14 @@ class IntentParser:
                     conf = 0.85
                 data["confidence"] = max(0.0, min(1.0, conf))
 
+                # Normalize optional scalar fields
+                data["budget"] = IntentParser._coerce_number(data.get("budget"))
+                data["people_count"] = IntentParser._coerce_number(data.get("people_count"))
+                data["gender"] = IntentParser._coerce_text(data.get("gender"))
+                data["age"] = IntentParser._coerce_text(data.get("age"))
+                data["other_request"] = IntentParser._coerce_text(data.get("other_request"))
+                data["special_request"] = IntentParser._coerce_text(data.get("special_request"))
+
                 # Ensure category and intent are valid strings
                 if not data.get("category"):
                     data["category"] = "personal_care"
@@ -42,6 +93,12 @@ class IntentParser:
                 if not isinstance(data.get("keywords"), list):
                     raw_kw = data.get("keywords")
                     data["keywords"] = [str(k) for k in raw_kw] if isinstance(raw_kw, list) else []
+                data["dietry_restrictions"] = IntentParser._coerce_list(
+                    data.get("dietry_restrictions")
+                )
+                data["dietry_preferences"] = IntentParser._coerce_list(
+                    data.get("dietry_preferences")
+                )
 
                 return IntentResponse(**data)
             except Exception as val_exc:

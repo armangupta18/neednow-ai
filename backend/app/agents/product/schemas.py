@@ -26,8 +26,7 @@ class ProductCandidate(BaseModel):
     priority: Optional[int] = Field(
         default=None,
         ge=1,
-        le=4,
-        description="Recommendation priority (1=highest, 4=lowest)",
+        description="Recommendation priority (1=highest)",
     )
 
 

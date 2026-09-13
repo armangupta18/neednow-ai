@@ -44,13 +44,22 @@ class Settings(BaseSettings):
     @property
     def gemini_api_keys(self) -> List[str]:
         """Return list of non-empty Gemini API keys.
-        Combines GEMINI_API_KEYS list and comma-separated GEMINI_API_KEY string.
+        Combines GEMINI_API_KEYS list, GEMINI_API_KEY_1..20 indexed vars,
+        and comma-separated GEMINI_API_KEY string.
         """
+        import os
         keys: list[str] = []
         if self.GEMINI_API_KEYS:
             keys.extend([k.strip() for k in self.GEMINI_API_KEYS if k and k.strip()])
         if self.GEMINI_API_KEY:
             keys.extend([k.strip() for k in self.GEMINI_API_KEY.split(",") if k and k.strip()])
+        
+        # Check indexed keys (GEMINI_API_KEY_1, GEMINI_API_KEY_2, etc.)
+        for i in range(1, 21):
+            val = os.getenv(f"GEMINI_API_KEY_{i}")
+            if val and val.strip():
+                keys.append(val.strip())
+
         seen = set()
         deduped = []
         for k in keys:
@@ -70,6 +79,9 @@ class Settings(BaseSettings):
     SESSION_TTL_MINUTES: int = 60
 
     USE_MOCK_LLM: bool = True
+
+    ENABLE_URGENCY_AGENT: bool = False
+    ENABLE_SUSTAINABILITY_AGENT: bool = False
 
 
 @lru_cache

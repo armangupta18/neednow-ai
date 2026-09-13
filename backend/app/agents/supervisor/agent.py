@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from app.memory.memory_manager import (
@@ -27,14 +26,11 @@ from app.agents.sustainability.agent import (
 
 from app.agents.supervisor.schemas import (
     SupervisorResponse,
+    ProductReasoning,
 )
 
-from app.agents.supervisor.reasoning import (
-    ReasoningBuilder,
-)
-
-from app.agents.supervisor.conversation import (
-    ConversationBuilder,
+from app.agents.supervisor.synthesis import (
+    SynthesisBuilder,
 )
 
 
@@ -94,59 +90,28 @@ class SupervisorAgent:
         )
 
         # --------------------------------
-        # STEP 1
-        # Intent + Urgency in parallel
+        # STEP 1 — Intent Detection
         # --------------------------------
 
-        intent_task = (
-            self.intent_agent.analyze(
-                situation
-            )
-        )
-
-        urgency_task = (
-            self.urgency_agent.analyze(
-                text=situation,
-                user_context=
-                memory.model_dump(),
-            )
-        )
-
-        intent_result, urgency_result = (
-            await asyncio.gather(
-                intent_task,
-                urgency_task,
-            )
-        )
+        intent_result = await self.intent_agent.analyze(situation)
 
         logger.info(
-            "Step 1 complete | intent=%s | category=%s | urgency=%s | keywords=%s",
+            "Step 1 complete | intent=%s | category=%s | keywords=%s",
             intent_result.intent,
             intent_result.category,
-            urgency_result.urgency.value,
             intent_result.keywords[:5] if intent_result.keywords else [],
         )
 
         # --------------------------------
-        # STEP 2
-        # Product Recommendations
+        # STEP 2 — Product Recommendations
         # --------------------------------
 
-        products_result = (
-            await self.product_agent
-            .recommend(
-                situation=situation,
-                urgency=
-                urgency_result.urgency.value,
-
-                budget=
-                intent_result.budget,
-
-                memory=memory,
-
-                category=
-                intent_result.category,
-            )
+        products_result = await self.product_agent.recommend(
+            situation=situation,
+            urgency="STANDARD",      # Neutral urgency when agent is disabled
+            budget=intent_result.budget,
+            memory=memory,
+            category=intent_result.category,
         )
 
         logger.info(
@@ -157,157 +122,76 @@ class SupervisorAgent:
         )
 
         # --------------------------------
-        # STEP 3
-        # Sustainability Analysis
-        # --------------------------------
-
-        sustainability_result = (
-            await self.sustainability_agent
-            .analyze(
-                [
-                    p
-                    for p in
-                    products_result
-                    .top_products
-                ]
-            )
-        )
-
-        # --------------------------------
-        # STEP 4
-        # Cart Builder
+        # STEP 3 — Build Cart (all products)
         # --------------------------------
 
         cart = {
-
-            "category":
-            intent_result.category,
-
+            "category": intent_result.category,
             "products": [
-
                 {
-                    "id":
-                    str(
-                        p.product_id
-                    ),
-
-                    "title":
-                    p.title,
-
-                    "price":
-                    p.price,
-
-                    "score":
-                    p.ranking_score,
-
-                    "reason":
-                    p.reason or "Matched by relevance",
-
-                    "priority":
-                    p.priority or (i + 1),
+                    "id": str(p.product_id),
+                    "title": p.title,
+                    "price": p.price,
+                    "score": p.ranking_score,
+                    "reason": p.reason or "Matched by relevance",
+                    "priority": p.priority or (i + 1),
                 }
-
-                for i, p in enumerate(
-                products_result
-                .top_products)
+                for i, p in enumerate(products_result.top_products)
             ],
-
             "bundles": [
-
                 {
-                    "id":
-                    str(
-                        p.product_id
-                    ),
-
-                    "title":
-                    p.title,
-
-                    "price":
-                    p.price,
+                    "id": str(p.product_id),
+                    "title": p.title,
+                    "price": p.price,
                 }
-
-                for p in
-                products_result
-                .bundle_products
+                for p in products_result.bundle_products
             ],
         }
 
         # --------------------------------
-        # STEP 5
-        # Reasoning
+        # STEP 4 — Combined Synthesis
+        # Single Gemini call → conversation + per-product reasoning
         # --------------------------------
 
-        reasoning = await ReasoningBuilder.build_async(
-            intent=intent_result,
-            urgency=urgency_result,
-            products=products_result,
-            sustainability=sustainability_result,
+        conversation_reply, raw_reasoning = await SynthesisBuilder.build(
             situation=situation,
+            category=intent_result.category,
+            top_products=products_result.top_products[:4],
         )
 
-        # Only show eco alternative if one genuinely exists
-        eco = None
-        if sustainability_result.eco_alternatives:
-            # Pick the one with highest carbon savings
-            best_eco = max(
-                sustainability_result.eco_alternatives,
-                key=lambda a: a.carbon_saved,
+        product_reasonings = [
+            ProductReasoning(
+                product_name=item.get("product_name", ""),
+                reason=item.get("reason", ""),
             )
-            # Only show if there's actual carbon savings
-            if best_eco.carbon_saved > 0:
-                eco = best_eco.model_dump()
+            for item in raw_reasoning
+            if item.get("product_name") and item.get("reason")
+        ]
 
-        # Generate conversational response (user-facing, no technical data)
-        conversation_reply = await ConversationBuilder.generate_response(
-            situation=situation,
-            intent=intent_result,
-            urgency=urgency_result,
-            products=products_result,
-            sustainability=sustainability_result,
-        )
+        # Build legacy reasoning string for backward compat
+        reasoning_lines = [
+            f"{i+1}. **{r.product_name}**: {r.reason}"
+            for i, r in enumerate(product_reasonings)
+        ]
+        reasoning_str = "\n".join(reasoning_lines) if reasoning_lines else "Recommendations based on your situation and search context."
 
         logger.info(
-            "Chat flow complete | user=%s | products=%d | urgency=%s | eco=%s",
+            "Chat flow complete | user=%s | products=%d | reasoning_items=%d",
             user_id,
             len(products_result.top_products),
-            urgency_result.urgency.value,
-            "yes" if eco else "none",
+            len(product_reasonings),
         )
 
         return SupervisorResponse(
-
             cart=cart,
-
-            urgency={
-                "level":
-                urgency_result
-                .urgency.value,
-
-                "score":
-                urgency_result.score,
-
-                "explanation":
-                urgency_result
-                .explanation,
-            },
-
-            reasoning=reasoning,
-
+            urgency=None,
+            reasoning=reasoning_str,
+            product_reasonings=product_reasonings,
             conversation_reply=conversation_reply,
-
-            eco_alternative=eco,
-
+            eco_alternative=None,
             metadata={
-
-                "memory_used":
-                True,
-
-                "confidence":
-                products_result
-                .confidence,
-
-                "user_context":
-                memory_context,
+                "memory_used": True,
+                "confidence": products_result.confidence,
+                "user_context": memory_context,
             },
         )

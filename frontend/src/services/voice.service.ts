@@ -48,7 +48,7 @@ export async function transcribeAudio(
     {
       params: { user_id: userId, language },
       headers: { "Content-Type": "multipart/form-data" },
-      timeout: 60000, // Voice files may take longer
+      timeout: 120000, // Voice files may take longer
     }
   );
   return response.data;
@@ -73,7 +73,7 @@ export async function voiceChat(
         language: options?.language ?? "en",
       },
       headers: { "Content-Type": "multipart/form-data" },
-      timeout: 60000,
+      timeout: 120000,
     }
   );
   return response.data;

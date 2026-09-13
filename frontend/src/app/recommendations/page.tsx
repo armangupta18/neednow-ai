@@ -31,7 +31,10 @@ export default function RecommendationsPage() {
   }
 
   const { cart, urgency, reasoning, ecoAlternative, confidence } = lastResult;
-  const urgencyConfig = URGENCY_CONFIG[urgency.level as UrgencyLevel] ?? URGENCY_CONFIG.LOW;
+  const showUrgency = !!urgency && urgency.level !== "STANDARD";
+  const urgencyConfig = showUrgency
+    ? URGENCY_CONFIG[urgency.level as UrgencyLevel] ?? URGENCY_CONFIG.LOW
+    : null;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -44,9 +47,11 @@ export default function RecommendationsPage() {
             Confidence: <span className="font-medium">{Math.round(confidence * 100)}%</span>
           </p>
         </div>
-        <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", urgencyConfig.bgColor, urgencyConfig.color)}>
-          {urgencyConfig.icon} {urgencyConfig.label}
-        </span>
+        {showUrgency && urgencyConfig && (
+          <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", urgencyConfig.bgColor, urgencyConfig.color)}>
+            {urgencyConfig.icon} {urgencyConfig.label}
+          </span>
+        )}
       </div>
 
       {/* Reasoning */}

@@ -115,11 +115,11 @@ class GeminiService:
         request_id = uuid.uuid4().hex
         recv_ts = time.time()
         logger.info(
-            "[REQUEST RECEIVED] id=%s ts=%s mode=%s prompt_preview=%s",
+            "[REQUEST RECEIVED] id=%s ts=%s mode=%s prompt=%s",
             request_id,
             recv_ts,
             "MOCK" if is_mock else "GEMINI",
-            user_prompt[:120].replace("\n", " "),
+            user_prompt.replace("\n", " "),
         )
 
         if is_mock:
@@ -132,11 +132,11 @@ class GeminiService:
             result = self._mock_response(system_prompt, user_prompt)
             elapsed_ms = int((time.monotonic() - start) * 1000)
             logger.info(
-                "[RECV<-MOCK] id=%s status=SUCCESS duration_ms=%d chars=%d preview=%s",
+                "[RECV<-MOCK] id=%s status=SUCCESS duration_ms=%d chars=%d result=%s",
                 request_id,
                 elapsed_ms,
                 len(result),
-                result[:120].replace("\n", " "),
+                result.replace("\n", " "),
             )
         else:
             result = await self._invoke_gemini(system_prompt, user_prompt, request_id)
@@ -192,7 +192,7 @@ class GeminiService:
                     total_keys,
                     settings.GEMINI_MODEL_ID,
                     _KEY_TIMEOUT_SECONDS,
-                    user_prompt[:80].replace("\n", " "),
+                    user_prompt.replace("\n", " "),
                 )
 
                 # Capture variables for the thread closure
@@ -229,14 +229,14 @@ class GeminiService:
                 elapsed_ms = int((time.monotonic() - attempt_start) * 1000)
 
                 logger.info(
-                    "[RECV] id=%s API Key #%d of %d (%s) | SUCCESS | duration_ms=%d chars=%d preview=%s",
+                    "[RECV] id=%s API Key #%d of %d (%s) | SUCCESS | duration_ms=%d chars=%d result=%s",
                     request_id,
                     key_number,
                     total_keys,
                     key_preview,
                     elapsed_ms,
                     len(result),
-                    result[:120].replace("\n", " "),
+                    result.replace("\n", " "),
                 )
                 return result
 
@@ -259,14 +259,14 @@ class GeminiService:
                     logger.warning(
                         "[QUOTA] id=%s API Key #%d of %d (%s) — quota exceeded (elapsed_ms=%d) cooling down for %ds | error=%s",
                         request_id, key_number, total_keys, key_preview,
-                        elapsed_ms, _KEY_COOLDOWN_SECONDS, err_str[:100],
+                        elapsed_ms, _KEY_COOLDOWN_SECONDS, err_str,
                     )
                 else:
                     elapsed_ms = int((time.monotonic() - attempt_start) * 1000)
                     logger.warning(
                         "[FAIL] id=%s API Key #%d of %d (%s) | attempt=%d/%d | elapsed_ms=%d | error=%s",
                         request_id, key_number, total_keys, key_preview,
-                        attempts, total_keys, elapsed_ms, err_str[:150],
+                        attempts, total_keys, elapsed_ms, err_str,
                     )
 
         logger.error(
@@ -284,7 +284,7 @@ class GeminiService:
         """Generate realistic mock responses based on prompt content."""
         combined = (system_prompt + " " + user_prompt).lower()
 
-        logger.info("Mock LLM processing: %s", user_prompt[:80])
+        logger.info("Mock LLM processing: %s", user_prompt)
 
         # Intent Agent
         if "intent" in combined and "category" in combined and "keywords" in combined:
