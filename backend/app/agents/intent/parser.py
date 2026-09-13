@@ -3,6 +3,10 @@ import logging
 
 from pydantic import ValidationError
 
+from app.agents.intent.exceptions import (
+    IntentParsingException,
+    IntentValidationException,
+)
 from app.agents.intent.schemas import IntentResponse
 from app.utils.helpers import HelperUtils
 
@@ -19,40 +23,13 @@ class IntentParser:
         """Parse raw response from Gemini into a validated IntentResponse."""
         data = HelperUtils.extract_json(response_text)
 
-        if isinstance(data, dict):
-            try:
-                # Sanitize urgency literal
-                urgency = str(data.get("urgency", "medium")).lower().strip()
-                if urgency not in ("low", "medium", "high", "critical"):
-                    urgency = "medium"
-                data["urgency"] = urgency
+        if not isinstance(data, dict):
+            raise IntentParsingException("Could not parse JSON object from model response.")
 
-                # Sanitize confidence range
-                try:
-                    conf = float(data.get("confidence", 0.85))
-                except (ValueError, TypeError):
-                    conf = 0.85
-                data["confidence"] = max(0.0, min(1.0, conf))
-
-                # Ensure category and intent are valid strings
-                if not data.get("category"):
-                    data["category"] = "personal_care"
-                if not data.get("intent"):
-                    data["intent"] = "general_search"
-                if not isinstance(data.get("keywords"), list):
-                    raw_kw = data.get("keywords")
-                    data["keywords"] = [str(k) for k in raw_kw] if isinstance(raw_kw, list) else []
-
-                return IntentResponse(**data)
-            except Exception as val_exc:
-                logger.warning("Intent validation warning: %s. Falling back to heuristic analysis.", val_exc)
-
-        # Fallback if LLM response could not be parsed into dict
-        logger.warning(
-            "Intent parsing fallback triggered for response length=%d",
-            len(response_text) if response_text else 0,
-        )
-        return IntentParser._fallback_intent(response_text + " " + user_prompt)
+        try:
+            return IntentResponse(**data)
+        except ValidationError as exc:
+            raise IntentValidationException(f"Invalid intent response structure: {exc}") from exc
 
     @staticmethod
     def _fallback_intent(text: str) -> IntentResponse:
