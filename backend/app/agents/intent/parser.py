@@ -3,6 +3,10 @@ import logging
 
 from pydantic import ValidationError
 
+from app.agents.intent.exceptions import (
+    IntentParsingException,
+    IntentValidationException,
+)
 from app.agents.intent.schemas import IntentResponse
 from app.utils.helpers import HelperUtils
 
