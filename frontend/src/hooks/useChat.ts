@@ -63,7 +63,7 @@ function detectAction(message: string): ActionType {
  */
 export function useChat() {
   const abortRef = useRef<AbortController | null>(null);
-  const routerRef = useRef<ReturnType<typeof useRouter> | null>(null);
+  const router = useRouter();
 
   const userId = useUserStore((s) => s.userId);
   const sessionId = useChatStore((s) => s.sessionId);
@@ -81,9 +81,7 @@ export function useChat() {
   } = useChatStore();
 
   // Cart store direct access for local actions
-  const cartItems = useCartStore((s) => s.items);
   const addCartItem = useCartStore((s) => s.addItem);
-  const cartClearFn = useCartStore((s) => s.clearCart);
 
   const error = useChatStore(() => null);
 
@@ -107,7 +105,7 @@ export function useChat() {
             content: "Opening your cart now!",
             timestamp: new Date().toISOString(),
           });
-          // Navigate will happen in ChatWindow
+          router.push(ROUTES.CART);
           return true;
         }
         if (action === "checkout") {
@@ -123,6 +121,7 @@ export function useChat() {
             content: "Taking you to checkout!",
             timestamp: new Date().toISOString(),
           });
+          router.push(ROUTES.CHECKOUT);
           return true;
         }
         return false; // No context — fall through to backend
@@ -196,8 +195,9 @@ export function useChat() {
             role: "assistant",
             content: `✅ **${product.title}** added! Taking you to checkout now...`,
             timestamp: new Date().toISOString(),
-            metadata: { action: "buy_now", navigate: ROUTES.CHECKOUT },
+            metadata: { action: "buy_now" },
           });
+          router.push(ROUTES.CHECKOUT);
           return true;
         }
 
@@ -207,8 +207,9 @@ export function useChat() {
             role: "assistant",
             content: "Opening your cart!",
             timestamp: new Date().toISOString(),
-            metadata: { action: "navigate", navigate: ROUTES.CART },
+            metadata: { action: "navigate" },
           });
+          router.push(ROUTES.CART);
           return true;
         }
 
@@ -218,8 +219,9 @@ export function useChat() {
             role: "assistant",
             content: "Let's proceed to checkout!",
             timestamp: new Date().toISOString(),
-            metadata: { action: "navigate", navigate: ROUTES.CHECKOUT },
+            metadata: { action: "navigate" },
           });
+          router.push(ROUTES.CHECKOUT);
           return true;
         }
 
@@ -229,8 +231,9 @@ export function useChat() {
             role: "assistant",
             content: "Great! Taking you to complete your order.",
             timestamp: new Date().toISOString(),
-            metadata: { action: "navigate", navigate: ROUTES.CHECKOUT },
+            metadata: { action: "navigate" },
           });
+          router.push(ROUTES.CHECKOUT);
           return true;
         }
 
@@ -248,7 +251,7 @@ export function useChat() {
           return false;
       }
     },
-    [lastResult, addMessage, addCartItem]
+    [lastResult, addMessage, addCartItem, router]
   );
 
   // ── Send message (with action interception) ────────────────

@@ -56,6 +56,24 @@ const api: AxiosInstance = axios.create({
   },
 });
 
+// Deduplicate identical in-flight requests so dev-mode double invocations or
+// accidental duplicate handlers do not hit the backend multiple times.
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+function buildRequestKey(
+  method: string,
+  url: string,
+  config?: AxiosRequestConfig,
+  data?: unknown
+): string {
+  return JSON.stringify({
+    method: method.toUpperCase(),
+    url,
+    params: config?.params ?? null,
+    data: data ?? null,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Request Interceptor
 // ---------------------------------------------------------------------------
@@ -119,18 +137,54 @@ export function createAbortController(): AbortController {
 }
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-  const response = await api.get<T>(url, config);
-  return response.data;
+  const requestKey = buildRequestKey("get", url, config);
+  const existingRequest = inFlightRequests.get(requestKey) as Promise<T> | undefined;
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = api.get<T>(url, config).then((response) => response.data);
+  inFlightRequests.set(requestKey, request as Promise<unknown>);
+
+  try {
+    return await request;
+  } finally {
+    inFlightRequests.delete(requestKey);
+  }
 }
 
 export async function apiPost<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-  const response = await api.post<T>(url, data, config);
-  return response.data;
+  const requestKey = buildRequestKey("post", url, config, data);
+  const existingRequest = inFlightRequests.get(requestKey) as Promise<T> | undefined;
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = api.post<T>(url, data, config).then((response) => response.data);
+  inFlightRequests.set(requestKey, request as Promise<unknown>);
+
+  try {
+    return await request;
+  } finally {
+    inFlightRequests.delete(requestKey);
+  }
 }
 
 export async function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-  const response = await api.delete<T>(url, config);
-  return response.data;
+  const requestKey = buildRequestKey("delete", url, config);
+  const existingRequest = inFlightRequests.get(requestKey) as Promise<T> | undefined;
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = api.delete<T>(url, config).then((response) => response.data);
+  inFlightRequests.set(requestKey, request as Promise<unknown>);
+
+  try {
+    return await request;
+  } finally {
+    inFlightRequests.delete(requestKey);
+  }
 }
 
 export default api;

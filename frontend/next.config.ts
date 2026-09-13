@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  // Turbopack workspace root configuration
+  // Pin Turbopack root to frontend directory (prevents picking up C:\Users\acer\Desktop\package-lock.json)
   turbopack: {
-    root: path.resolve(__dirname, ".."),
+    root: path.resolve(__dirname),
   },
 
   // Allow dev access from local network

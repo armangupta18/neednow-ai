@@ -39,6 +39,13 @@ export default function CheckoutPage() {
   const platformFee = 5;
   const tax = Math.round(totalAmount * 0.05);
   const totalPayable = totalAmount + deliveryFee + platformFee + tax;
+  const qrPattern = [
+    true, false, true, false, true,
+    false, true, true, false, true,
+    true, false, false, true, false,
+    false, true, false, true, true,
+    true, false, true, false, false,
+  ];
 
   function updateAddress(field: keyof OrderAddress, value: string) {
     setAddress((prev) => ({ ...prev, [field]: value }));
@@ -240,7 +247,7 @@ export default function CheckoutPage() {
                         key={i}
                         className={cn(
                           "rounded-sm",
-                          Math.random() > 0.4 ? "bg-slate-900" : "bg-white"
+                          qrPattern[i] ? "bg-slate-900" : "bg-white"
                         )}
                       />
                     ))}
