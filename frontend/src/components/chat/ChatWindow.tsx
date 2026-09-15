@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 import { useCart } from "@/hooks/useCart";
@@ -12,7 +12,8 @@ import Suggestions from "./Suggestions";
 import ChatInput from "./ChatInput";
 import { CHAT_WELCOME_MESSAGE } from "@/constants/prompts";
 import { ROUTES } from "@/constants/routes";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
+import { ShoppingBag, CheckCircle2, ArrowRight, X } from "lucide-react";
 
 export default function ChatWindow() {
   const router = useRouter();
@@ -24,16 +25,9 @@ export default function ChatWindow() {
     clearChat,
   } = useChat();
 
-  const { addItem, itemCount } = useCart();
-  const showCartBar =
-    itemCount > 0 &&
-    [...messages].reverse().some(
-      (msg) =>
-        msg.role === "assistant" &&
-        ((msg.metadata?.action as string | undefined) === "added_to_cart" ||
-          (msg.metadata?.action as string | undefined) === "added_all_to_cart" ||
-          (msg.metadata?.action as string | undefined) === "buy_now")
-    );
+  const { addItem, itemCount, totalAmount } = useCart();
+  const [toastItem, setToastItem] = useState<{ title: string; price?: number } | null>(null);
+  const [cartBounced, setCartBounced] = useState(false);
 
   const { isMuted, isSpeaking, speak, stop, toggleMute, isSupported: ttsSupported } =
     useSpeechSynthesis();
@@ -67,16 +61,31 @@ export default function ChatWindow() {
     sendMessage(text);
   };
 
-  const handleAddToCart = (productId: string) => {
+  const handleAddToCart = async (productId: string) => {
     const product = lastResult?.cart?.products?.find((p: { id: string }) => p.id === productId);
-    if (product) {
-      addItem(productId);
+    const success = await addItem(productId);
+    
+    if (product || success) {
+      // Trigger toast & bounce feedback
+      setToastItem({
+        title: product?.title || "Item",
+        price: product?.price,
+      });
+
+      setCartBounced(true);
+      setTimeout(() => setCartBounced(false), 600);
+
+      // Auto dismiss toast after 3.5s
+      setTimeout(() => {
+        setToastItem((curr) => (curr?.title === (product?.title || "Item") ? null : curr));
+      }, 3500);
     }
+    return success;
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (lastResult?.cart?.products?.[0]) {
-      addItem(lastResult.cart.products[0].id);
+      await addItem(lastResult.cart.products[0].id);
     }
     router.push(ROUTES.CHECKOUT);
   };
@@ -96,9 +105,49 @@ export default function ChatWindow() {
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
+      {/* Floating Animated Toast on Add to Cart */}
+      {toastItem && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md animate-slide-in-down duration-300">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-950/90 p-3 shadow-xl backdrop-blur-md text-white">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-400/40">
+                <CheckCircle2 className="h-5 w-5 animate-checkmark-pop" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-emerald-300 flex items-center gap-1">
+                  Added to Cart
+                  {toastItem.price != null && (
+                    <span className="text-emerald-100 font-normal">({formatPrice(toastItem.price)})</span>
+                  )}
+                </p>
+                <p className="text-xs text-white truncate font-medium">
+                  {toastItem.title}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => router.push(ROUTES.CART)}
+                className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-xs font-bold text-emerald-950 hover:bg-emerald-400 transition active:scale-95"
+              >
+                <span>View</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => setToastItem(null)}
+                className="rounded-lg p-1 text-emerald-300 hover:bg-emerald-800/50 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="flex items-center justify-between border-b px-4 py-3 bg-white/90 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm">🤖</span>
           <div>
@@ -168,24 +217,43 @@ export default function ChatWindow() {
         {isTyping && <TypingIndicator />}
       </div>
 
-      {/* Sticky cart bar (shown after add-to-cart) */}
-      {showCartBar && itemCount > 0 && (
-        <div className="border-t border-green-200 bg-green-50 px-4 py-2 flex items-center justify-between">
-          <span className="text-xs font-medium text-green-800">
-            🛒 {itemCount} item{itemCount > 1 ? "s" : ""} in cart
-          </span>
-          <div className="flex gap-2">
+      {/* Sticky cart bar (animated whenever items are in cart) */}
+      {itemCount > 0 && (
+        <div className="border-t border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 px-4 py-2.5 flex items-center justify-between shadow-sm animate-slide-in-bottom">
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white transition-transform duration-300",
+              cartBounced && "animate-cart-bounce"
+            )}>
+              <ShoppingBag className="h-4 w-4" />
+            </div>
+            <div>
+              <span className={cn(
+                "inline-block text-xs font-bold text-emerald-950 transition-transform duration-200",
+                cartBounced && "scale-110 text-emerald-600 font-extrabold"
+              )}>
+                {itemCount} item{itemCount > 1 ? "s" : ""} in cart
+              </span>
+              {totalAmount > 0 && (
+                <span className="ml-1.5 text-xs text-emerald-700 font-medium">
+                  ({formatPrice(totalAmount)})
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
             <button
               onClick={() => router.push(ROUTES.CART)}
-              className="rounded-lg bg-white border border-green-300 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-100 transition"
+              className="rounded-lg bg-white border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition active:scale-95 shadow-sm"
             >
               View Cart
             </button>
             <button
               onClick={() => router.push(ROUTES.CHECKOUT)}
-              className="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700 transition"
+              className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition active:scale-95 shadow-sm hover:shadow"
             >
-              Checkout
+              Checkout →
             </button>
           </div>
         </div>
