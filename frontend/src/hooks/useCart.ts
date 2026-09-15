@@ -13,7 +13,11 @@ export function useCart() {
   const [error, setError] = useState<string | null>(null);
 
   const userId = useUserStore((s) => s.userId);
-  const { items, totalAmount, cartId, setCart, removeItem, clearCart } = useCartStore();
+  const items = useCartStore((s) => s.items);
+  const totalAmount = useCartStore((s) => s.totalAmount);
+  const cartId = useCartStore((s) => s.cartId);
+  const setCart = useCartStore((s) => s.setCart);
+  const clearCart = useCartStore((s) => s.clearCart);
 
   const fetchCart = useCallback(async () => {
     try {

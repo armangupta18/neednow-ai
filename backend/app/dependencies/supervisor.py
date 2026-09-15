@@ -97,11 +97,13 @@ def get_supervisor(
         sustainability_agent = SustainabilityAgent.__new__(SustainabilityAgent)
         sustainability_agent.retrieval_service = None
 
-    # Inject LLM into ReasoningBuilder for Gemini-powered reasoning
+    # Inject LLM into builders for Gemini-powered synthesis
     from app.agents.supervisor.reasoning import ReasoningBuilder
     from app.agents.supervisor.conversation import ConversationBuilder
+    from app.agents.supervisor.synthesis import SynthesisBuilder
     ReasoningBuilder.set_llm(llm)
     ConversationBuilder.set_llm(llm)
+    SynthesisBuilder.set_llm(llm)
 
     return SupervisorAgent(
         intent_agent=intent_agent,

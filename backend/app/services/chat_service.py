@@ -70,6 +70,7 @@ class ChatService:
             urgency=result.urgency,
             reasoning=result.reasoning,
             eco_alternative=result.eco_alternative,
+            product_reasonings=[r.model_dump() for r in result.product_reasonings],
             metadata=result.metadata,
         )
 

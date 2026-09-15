@@ -32,6 +32,11 @@ export interface SupervisorCart {
   bundles: BundleProduct[];
 }
 
+export interface ProductReasoning {
+  product_name: string;
+  reason: string;
+}
+
 export interface Urgency {
   level: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
   score: number;
@@ -53,9 +58,10 @@ export interface ChatResponse {
   user_message: AgentMessage;
   assistant_message: AgentMessage;
   cart: SupervisorCart;
-  urgency: Urgency;
+  urgency: Urgency | null;
   reasoning: string;
   eco_alternative: EcoAlternative | null;
+  product_reasonings: ProductReasoning[];
   recommended_products: Record<string, unknown>[];
   metadata: { memory_used: boolean; confidence: number };
   timestamp: string;

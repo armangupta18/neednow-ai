@@ -96,8 +96,9 @@ export interface SupervisorMetadata {
 
 export interface SupervisorResponse {
   cart: SupervisorCart;
-  urgency: Urgency;
+  urgency: Urgency | null;
   reasoning: string;
+  product_reasonings: ProductReasoning[];
   eco_alternative: EcoAlternative | null;
   metadata: SupervisorMetadata;
 }
@@ -106,15 +107,22 @@ export interface SupervisorResponse {
 // Chat Response (from POST /api/v1/chat — wraps supervisor)
 // ---------------------------------------------------------------------------
 
+// Per-product reasoning item returned by combined synthesis
+export interface ProductReasoning {
+  product_name: string;
+  reason: string;
+}
+
 export interface ChatResponse {
   session_id: string;
   user_message: AgentMessage;
   assistant_message: AgentMessage;
   cart: SupervisorCart;
-  urgency: Urgency;
+  urgency: Urgency | null;
   reasoning: string;
   eco_alternative: EcoAlternative | null;
   recommended_products: Record<string, unknown>[];
+  product_reasonings: ProductReasoning[];
   metadata: SupervisorMetadata;
   timestamp: string;
 }

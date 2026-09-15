@@ -31,6 +31,7 @@ from app.agents.product.recommendation_prompt import (
     build_recommendation_user_prompt,
 )
 from app.services.gemini_service import GeminiService
+from app.utils.helpers import HelperUtils
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +46,13 @@ class RecommendationItem(BaseModel):
 
     product_name: str = Field(..., min_length=1)
     reason: str = Field(..., min_length=5)
-    priority: int = Field(..., ge=1, le=4)
+    priority: int = Field(..., ge=1)
 
     @field_validator("priority")
     @classmethod
     def priority_in_range(cls, v: int) -> int:
-        if v < 1 or v > 4:
-            raise ValueError("Priority must be between 1 and 4")
+        if v < 1:
+            raise ValueError("Priority must be >= 1")
         return v
 
 
@@ -145,7 +146,7 @@ class ProductAgent:
 
         # Fallback: if Gemini matching fails, use ranked order
         if not top_products:
-            for product, score, similarity in ranked[:4]:
+            for i, (product, score, similarity) in enumerate(ranked[:4]):
                 top_products.append(
                     ProductCandidate(
                         product_id=product.id,
@@ -155,9 +156,33 @@ class ProductAgent:
                         similarity_score=similarity,
                         ranking_score=score,
                         reason="Matched by relevance scoring",
-                        priority=len(top_products) + 1,
+                        priority=i + 1,
                     )
                 )
+
+        # Build set of product IDs already in top_products (Gemini picks)
+        top_ids = {str(p.product_id) for p in top_products}
+
+        # Append remaining ranked candidates (items 5..20) not already selected
+        extra_priority = len(top_products) + 1
+        for product, score, similarity in ranked:
+            if str(product.id) in top_ids:
+                continue
+            top_products.append(
+                ProductCandidate(
+                    product_id=product.id,
+                    title=product.title,
+                    category=product.category,
+                    price=product.price,
+                    similarity_score=similarity,
+                    ranking_score=score,
+                    reason="Also relevant to your search",
+                    priority=extra_priority,
+                )
+            )
+            extra_priority += 1
+            if extra_priority > 20:
+                break
 
         # Step 6: Bundle suggestions
         bundle_products = BundleService.generate(category, products)
@@ -173,14 +198,14 @@ class ProductAgent:
             for product in bundle_products
         ]
 
-        # Confidence score
+        # Confidence score based on top 4 Gemini picks
         confidence = 0.0
         if top_products:
-            top_scores = [p.similarity_score for p in top_products[:3]]
+            top_scores = [p.similarity_score for p in top_products[:4]]
             confidence = round(sum(top_scores) / len(top_scores), 2) if top_scores else 0.0
 
         return ProductResponse(
-            top_products=top_products[:4],
+            top_products=top_products,   # All candidates (up to 20)
             bundle_products=bundle_candidates,
             confidence=confidence,
         )
@@ -227,13 +252,15 @@ class ProductAgent:
 
     @staticmethod
     def _parse_gemini_response(raw: str) -> list[RecommendationItem]:
-        """Parse and validate Gemini JSON response."""
-        cleaned = raw.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned.replace("```json", "")
-        cleaned = cleaned.replace("```", "").strip()
+        """Parse and validate Gemini JSON response using robust extraction."""
+        # Use HelperUtils.extract_json which handles: markdown fences,
+        # trailing commas, unescaped newlines, partial JSON via best-effort.
+        data = HelperUtils.extract_json(raw)
 
-        data = json.loads(cleaned)
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"Gemini returned non-dict JSON. Raw preview: {raw[:120]!r}"
+            )
 
         # Validate with Pydantic
         output = RecommendationOutput(**data)

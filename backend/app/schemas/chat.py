@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -170,9 +170,9 @@ class ChatResponse(BaseModel):
         default_factory=dict,
         description="Current cart state after this turn",
     )
-    urgency: UrgencySnapshot | dict[str, Any] = Field(
-        default_factory=dict,
-        description="Urgency assessment for this turn",
+    urgency: Optional[UrgencySnapshot | dict[str, Any]] = Field(
+        default=None,
+        description="Urgency assessment for this turn (None when agent is disabled)",
     )
     reasoning: str = Field(
         default="",
@@ -185,6 +185,10 @@ class ChatResponse(BaseModel):
     recommended_products: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Product recommendations generated this turn",
+    )
+    product_reasonings: List[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Per-product reasoning items (name + reason) for top 4 picks",
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,

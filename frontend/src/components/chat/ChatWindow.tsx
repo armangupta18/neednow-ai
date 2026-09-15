@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 import { useCart } from "@/hooks/useCart";
@@ -25,7 +25,15 @@ export default function ChatWindow() {
   } = useChat();
 
   const { addItem, itemCount } = useCart();
-  const [showCartBar, setShowCartBar] = useState(false);
+  const showCartBar =
+    itemCount > 0 &&
+    [...messages].reverse().some(
+      (msg) =>
+        msg.role === "assistant" &&
+        ((msg.metadata?.action as string | undefined) === "added_to_cart" ||
+          (msg.metadata?.action as string | undefined) === "added_all_to_cart" ||
+          (msg.metadata?.action as string | undefined) === "buy_now")
+    );
 
   const { isMuted, isSpeaking, speak, stop, toggleMute, isSupported: ttsSupported } =
     useSpeechSynthesis();
@@ -41,22 +49,10 @@ export default function ChatWindow() {
     }
   }, [messages, isTyping]);
 
-  // Handle navigation actions from assistant messages
+  // Read aloud new assistant messages.
   useEffect(() => {
     if (messages.length > prevMessageCount.current) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === "assistant" && lastMsg.metadata) {
-        const nav = lastMsg.metadata.navigate as string | undefined;
-        if (nav) {
-          setTimeout(() => router.push(nav), 800);
-        }
-        // Show cart bar after add-to-cart actions
-        const action = lastMsg.metadata.action as string | undefined;
-        if (action === "added_to_cart" || action === "added_all_to_cart" || action === "buy_now") {
-          setShowCartBar(true);
-        }
-      }
-      // Read aloud (skip JSON and navigation messages)
       if (lastMsg?.role === "assistant" && !lastMsg.metadata?.error) {
         const content = lastMsg.content;
         if (content && !content.startsWith("{") && !content.startsWith("[")) {
@@ -65,7 +61,7 @@ export default function ChatWindow() {
       }
     }
     prevMessageCount.current = messages.length;
-  }, [messages, speak, router]);
+  }, [messages, speak]);
 
   const handleSuggestion = (text: string) => {
     sendMessage(text);
@@ -75,7 +71,6 @@ export default function ChatWindow() {
     const product = lastResult?.cart?.products?.find((p: { id: string }) => p.id === productId);
     if (product) {
       addItem(productId);
-      setShowCartBar(true);
     }
   };
 

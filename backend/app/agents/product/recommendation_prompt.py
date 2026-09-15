@@ -39,10 +39,17 @@ def build_recommendation_user_prompt(
     urgency: str,
     available_products: list[dict],
 ) -> str:
-    """Build the user prompt for Gemini recommendation generation."""
+    """Build the user prompt for Gemini recommendation generation.
+
+    Caps the product list to 20 items — the model only picks 4 anyway,
+    and a huge list wastes tokens and risks truncating the JSON output.
+    """
+    # Limit to top 20 candidates (already ranked by relevance upstream)
+    products_to_send = available_products[:20]
+
     product_list = "\n".join(
         f"- {p['title']} (₹{p['price']:.0f})"
-        for p in available_products
+        for p in products_to_send
     )
 
     return f"""User Situation: {situation}
@@ -53,3 +60,4 @@ Available Products:
 {product_list}
 
 Select the most relevant products (max 4) and explain why each is recommended for this specific situation."""
+

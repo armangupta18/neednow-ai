@@ -31,6 +31,18 @@ class IntentResponse(BaseModel):
 
     people_count: Optional[int] = None
 
+    gender: Optional[str] = None
+
+    age: Optional[str] = None
+
+    dietry_restrictions: list[str] = Field(default_factory=list)
+
+    dietry_preferences: list[str] = Field(default_factory=list)
+
+    other_request: Optional[str] = None
+
+    special_request: Optional[str] = None
+
     confidence: float = Field(
         ge=0,
         le=1,

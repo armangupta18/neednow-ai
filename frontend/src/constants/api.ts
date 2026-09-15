@@ -12,7 +12,8 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export const API_TIMEOUT = 30_000;
+// Increase frontend HTTP timeout to 120s (2 mins) to handle multi-step LLM reasoning & rate limit failovers cleanly
+export const API_TIMEOUT = 120_000;
 
 export const ENDPOINTS = {
   CHAT: "/api/v1/chat",
